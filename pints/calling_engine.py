@@ -1041,6 +1041,11 @@ def _context_for(index, lines, lo, hi):
     return [lines[i] for i in index.indices(q0, q1)]
 
 
+def _highlight_chromosome(kwargs):
+    """`--focused-chrom` is stored as `focused_chrom` by the CLI; `highlight_chromosome` by the API."""
+    return kwargs.get("highlight_chromosome", kwargs.get("focused_chrom", "chr1"))
+
+
 def _stringent_only(kwargs):
     """`--stringent-pairs-only` is stored as `stringent_pairs_only` by the CLI; `stringent_only` by the API."""
     return bool(kwargs.get("stringent_only", kwargs.get("stringent_pairs_only", False))
@@ -2388,7 +2393,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
     subpeak_pl_beds = {}
     subpeak_mn_beds = {}
     if kwargs.get("annotation_gtf", None) is not None:
-        highlight_chromosome = kwargs.get("highlight_chromosome", kwargs.get("focused_chrom", "chr1"))
+        highlight_chromosome = _highlight_chromosome(kwargs)
         log_assert(os.path.exists(kwargs.get("annotation_gtf", None)), "Cannot find gene annotation file", logger)
         if highlight_chromosome in chromosome_coverage_pl[0]:
             kwargs["donor_tolerance"] = cut_peaks_dry_run(kwargs.get("annotation_gtf", None), chromosome_coverage_pl,

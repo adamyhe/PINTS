@@ -234,9 +234,6 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--version", action="version", version=__version__)
 
     args = parser.parse_args()
-    # engine-side names of two CLI options (previously never reached the engine)
-    args.highlight_chromosome = args.focused_chrom
-    args.stringent_only = args.stringent_pairs_only or args.stringent_pairs_padj
 
     warnings.filterwarnings("ignore", message="numpy.dtype size changed")
     warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
