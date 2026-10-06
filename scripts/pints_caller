@@ -101,6 +101,10 @@ if __name__ == "__main__":
                        required=False, default=False,
                        help="Only consider elements as bidirectional when both of the two peaks are significant "
                             "according to their p-values")
+    group.add_argument("--stringent-pairs-padj", action="store_true", dest="stringent_pairs_padj",
+                       required=False, default=False,
+                       help="Like --stringent-pairs-only, but the opposite peak must be significant by its adjusted "
+                            "p-value (padj < --fdr-target) instead of its raw p-value.")
     group.add_argument("--min-length-opposite-peaks", "--min-lengths-opposite-peaks", dest="min_len_opposite_peaks",
                        required=False, default=0, type=int,
                        help="Minimum length requirement for peaks on the opposite strand to be paired, set it to 0 to loose this requirement")
@@ -169,6 +173,18 @@ if __name__ == "__main__":
     group.add_argument("--eler-lower-bound", dest="eler_lower_bound", action="store", default=1., type=float,
                        required=False, help="Lower bound of the empirical estimation for the density of "
                                             "potential true peaks in the local background.")
+    group.add_argument("--iqr-scale", action="store", dest="iqr_scale", type=float, required=False, default=1.0,
+                       help="Fence multiplier k for IQR outlier detection in local environment refinement "
+                            "(Q1 - k*IQR / Q3 + k*IQR). Default 1.0 (legacy PINTS); the PINTS paper and Tukey's "
+                            "rule use 1.5.")
+    group.add_argument("--fix-ler-flanks", action="store_true", dest="fix_ler_flanks", required=False,
+                       default=False,
+                       help="Use correct 2.5 kb background flanks for local environment refinement candidates "
+                            "near chromosome starts or far from the tested peak (off by default: legacy behaviour).")
+    group.add_argument("--strict-independent-filtering", action="store_true", dest="strict_independent_filtering",
+                       required=False, default=False,
+                       help="Windows removed by independent filtering are not tested (padj=1), as in Bourgon et al. "
+                            "2010. By default (legacy) they keep the padj from BH over all windows.")
     group.add_argument("--disable-small", action="store_true", required=False, default=False,
                        help="Set this switch to prevent PINTS from reporting very short peaks"
                             "(shorter than --small-peak-threshold)")
@@ -218,6 +234,9 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--version", action="version", version=__version__)
 
     args = parser.parse_args()
+    # engine-side names of two CLI options (previously never reached the engine)
+    args.highlight_chromosome = args.focused_chrom
+    args.stringent_only = args.stringent_pairs_only or args.stringent_pairs_padj
 
     warnings.filterwarnings("ignore", message="numpy.dtype size changed")
     warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
