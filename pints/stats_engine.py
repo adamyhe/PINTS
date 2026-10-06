@@ -443,17 +443,6 @@ class ZIP(StatModel):
         convergence : bool
 
         """
-        if FAST_MATH and _HAS_NUMBA and not self.debug and (self.init_mu is None or self.init_pi is None) \
-                and isinstance(window, np.ndarray) and window.ndim == 1 and window.dtype.kind in "iu" \
-                and window.shape[0] > 0:
-            st, lamb, pi, ll, conv = _zip_fit_window_nb(window, float(self.stop_diff), int(self.max_iter), _EPS,
-                                                        1 << 20)
-            if st == 0:
-                return 0, 0, 0, 0, True
-            if st == 1:
-                return lamb, lamb, 0, np.nan, True
-            if st == 2:
-                return lamb, lamb, pi, ll, conv
         zero_elements = window == 0
         zs = zero_elements.sum()
 
@@ -479,15 +468,6 @@ class ZIP(StatModel):
         prev_likelihood = 0.
         likelihoods = []
         u_ele, c_ele = np.unique(window, return_counts=True)
-        if FAST_MATH and _HAS_NUMBA and not self.debug and window.ndim == 1 and _LLCache.supported(u_ele):
-            sum_w = float(window.astype(np.float64).sum())
-            if np.isfinite(sum_w):
-                kf = u_ele.astype(np.float64)
-                lamb, pi, likelihood, conv = _zip_em_nb(kf, gammaln(kf + 1), c_ele.astype(np.float64),
-                                                        bool(u_ele[0] == 0), int(zs), int(I), sum_w,
-                                                        float(lamb), float(pi), float(self.stop_diff),
-                                                        int(self.max_iter), _EPS)
-                return lamb, lamb, pi, likelihood, conv
         if _HAS_NUMBA and not self.debug and window.ndim == 1:
             fast = self._fit_fast(window, zero_elements, u_ele, c_ele, I, lamb, pi)
             if fast is not None:
@@ -516,6 +496,24 @@ class ZIP(StatModel):
                     return lamb, lamb, pi, likelihood, False
             prev_likelihood = likelihood
             n_iter += 1
+
+    def fit_fast_math(self, window):
+        """Gate 2 (PINTS_FAST_MATH=1): `fit` computed by one compiled kernel; agrees with `fit` to ~1e-12
+        relative, not bit for bit. Used only where the result feeds continuous quantities (the final local
+        background of a tested window), never for discrete decisions (LER masking, thresholds), because
+        those amplify any drift into different peak calls. Falls back to `fit` when unsupported."""
+        if _HAS_NUMBA and not self.debug and (self.init_mu is None or self.init_pi is None) \
+                and isinstance(window, np.ndarray) and window.ndim == 1 and window.dtype.kind in "iu" \
+                and window.shape[0] > 0:
+            st, lamb, pi, ll, conv = _zip_fit_window_nb(window, float(self.stop_diff), int(self.max_iter), _EPS,
+                                                        1 << 20)
+            if st == 0:
+                return 0, 0, 0, 0, True
+            if st == 1:
+                return lamb, lamb, 0, np.nan, True
+            if st == 2:
+                return lamb, lamb, pi, ll, conv
+        return self.fit(window)
 
     def _fit_fast(self, window, zero_elements, u_ele, c_ele, I, lamb, pi):
         """
@@ -624,6 +622,13 @@ class ZIP(StatModel):
     def sf(self, peak_mu, peak_var, peak_pi, le_mu, le_var, le_pi):
         from scipy.stats import poisson
         return poisson.sf(peak_mu, le_mu)
+
+
+def fit_background(stat_tester, window):
+    """Final local-background fit of a tested window: Gate 2 kernel when PINTS_FAST_MATH=1, exact otherwise."""
+    if FAST_MATH and isinstance(stat_tester, ZIP):
+        return stat_tester.fit_fast_math(window)
+    return stat_tester.fit(window)
 
 
 class IQR(ABC):

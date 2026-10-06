@@ -41,7 +41,7 @@ try:
     from scipy.signal import find_peaks, peak_widths
     from scipy.ndimage import gaussian_filter1d
     from pybedtools import BedTool
-    from .stats_engine import Poisson, ZIP, pval_dist, bgIQR, pkIQR, \
+    from .stats_engine import Poisson, ZIP, fit_background, pval_dist, bgIQR, pkIQR, \
         independent_filtering, get_elbow
     from .io_engine import get_read_signal, get_coverage_bw, log_assert, normalize_using_input, is_zero_track, \
         npy_layout, npy_read, NPY_BLOCK, \
@@ -423,7 +423,7 @@ def check_window(coord_start, coord_end, mu_peak, var_peak, pi_peak, chromosome_
                                                   disable_ler=disable_ler, enable_eler=enable_eler,
                                                   peak_threshold=top_peak_mu)
 
-        mu_, var_, pi_, _, _ = stat_tester.fit(bg)
+        mu_, var_, pi_, _, _ = fit_background(stat_tester, bg)
         if compute_lrt:
             w, pval = stat_tester.lrt(selected_window, bg)
             lrt_pvals.append(pval)
