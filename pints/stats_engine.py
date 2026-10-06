@@ -95,6 +95,7 @@ def _poisson_pmf(k, mu):
 # ``np.where(mask, a, b).sum()``.
 # ---------------------------------------------------------------------------------------------------
 try:
+    import math
     import numba as _nb
 
     @_nb.njit(cache=True)
@@ -146,9 +147,107 @@ try:
             lo += m
         return res
 
+    # -----------------------------------------------------------------------------------------------
+    # Gate 2 (drift-tolerant, opt-in with PINTS_FAST_MATH=1): the whole ZIP EM loop in one compiled
+    # function. Same iteration, initialisation and stopping rule as `ZIP.fit`, but hat_z sums are
+    # closed-form (n_zero * v), and exp/log come from LLVM's libm instead of numpy's SIMD kernels, so
+    # results agree to ~1e-15 relative per iteration rather than bit for bit.
+    # -----------------------------------------------------------------------------------------------
+    @_nb.njit(cache=True, fastmath=False)
+    def _zip_em_nb(k, logfact, counts, zero_first, n_zero, n_total, sum_w, lamb, pi, stop_diff, max_iter, eps):
+        n_iter = 0
+        prev = 0.
+        nz = float(n_zero)
+        nn = float(n_total - n_zero)
+        m = k.shape[0]
+        while True:
+            v = pi / (pi + np.exp(-lamb) * (1 - pi))
+            pi = nz * v / n_total
+            lamb = sum_w / (nz * (1 - v) + nn)
+            ll = 0.
+            for j in range(m):
+                kj = k[j]
+                if kj == 0:
+                    t = -lamb
+                else:
+                    t = kj * np.log(lamb) - logfact[j] - lamb
+                p = (1 - pi) * min(np.exp(t), 1.)
+                if j == 0 and zero_first:
+                    p += pi
+                ll += np.log(max(p, eps)) * counts[j]
+            if n_iter > 0:
+                if abs(ll - prev) < stop_diff:
+                    return lamb, pi, ll, True
+                if n_iter > max_iter:
+                    return lamb, pi, ll, False
+            prev = ll
+            n_iter += 1
+
+    @_nb.njit(cache=True)
+    def _zip_fit_window_nb(window, stop_diff, max_iter, eps, max_hist):
+        """Whole `ZIP.fit` for a 1-D integer window (default initialisation).
+
+        Returns (status, lamb, pi, ll, converged); status 0 = all zeros, 1 = no zeros (mean),
+        2 = EM result, -1 = unsupported (negative or very large counts) -> caller uses the exact path.
+        """
+        n = window.shape[0]
+        n_zero = 0
+        s = 0.
+        mx = 0
+        for i in range(n):
+            x = window[i]
+            if x < 0:
+                return -1, 0., 0., 0., False
+            if x == 0:
+                n_zero += 1
+            if x > mx:
+                mx = x
+            s += x
+        if n_zero == n:
+            return 0, 0., 0., 0., True
+        m = s / n
+        # moment estimators (ZIP.zip_moment_estimators)
+        ss = 0.
+        for i in range(n):
+            d = window[i] - m
+            ss += d * d
+        s2 = ss / n
+        if m >= s2:
+            pi = 0.
+            lamb = m
+        else:
+            lamb = (s2 + m * m) / m - 1
+            pi = (s2 - m) / (s2 + m * m - m)
+        if n_zero == 0:
+            return 1, m, 0., np.nan, True
+        if mx > max_hist:
+            return -1, 0., 0., 0., False
+        hist = np.zeros(mx + 1, dtype=np.int64)
+        for i in range(n):
+            hist[window[i]] += 1
+        nu = 0
+        for v in range(mx + 1):
+            if hist[v] > 0:
+                nu += 1
+        k = np.empty(nu, dtype=np.float64)
+        logfact = np.empty(nu, dtype=np.float64)
+        counts = np.empty(nu, dtype=np.float64)
+        j = 0
+        for v in range(mx + 1):
+            if hist[v] > 0:
+                k[j] = v
+                logfact[j] = math.lgamma(v + 1.)
+                counts[j] = hist[v]
+                j += 1
+        lamb, pi, ll, conv = _zip_em_nb(k, logfact, counts, True, n_zero, n, s, lamb, pi, stop_diff, max_iter, eps)
+        return 2, lamb, pi, ll, conv
+
     _HAS_NUMBA = True
 except ImportError:  # pragma: no cover
     _HAS_NUMBA = False
+
+import os as _os
+FAST_MATH = _os.environ.get("PINTS_FAST_MATH", "0") == "1"
 
 
 def numba_warmup():
@@ -158,6 +257,12 @@ def numba_warmup():
         m = np.zeros(300, dtype=bool)
         m[::3] = True
         _masked_sum(m, 0.5, 1.0)
+        if FAST_MATH:
+            for dt in (np.int8, np.int16, np.int32, np.int64):
+                _zip_fit_window_nb(np.array([0, 1, 2, 0], dtype=dt), 1e-4, 1000, np.finfo(float).eps, 1 << 20)
+            k = np.arange(3, dtype=np.float64)
+            _zip_em_nb(k, gammaln(k + 1), np.ones(3, dtype=np.float64), True, 1, 3, 3., 1., 0.3, 1e-4, 1000,
+                       np.finfo(float).eps)
 
 
 _EPS = np.finfo(float).eps
@@ -338,6 +443,17 @@ class ZIP(StatModel):
         convergence : bool
 
         """
+        if FAST_MATH and _HAS_NUMBA and not self.debug and (self.init_mu is None or self.init_pi is None) \
+                and isinstance(window, np.ndarray) and window.ndim == 1 and window.dtype.kind in "iu" \
+                and window.shape[0] > 0:
+            st, lamb, pi, ll, conv = _zip_fit_window_nb(window, float(self.stop_diff), int(self.max_iter), _EPS,
+                                                        1 << 20)
+            if st == 0:
+                return 0, 0, 0, 0, True
+            if st == 1:
+                return lamb, lamb, 0, np.nan, True
+            if st == 2:
+                return lamb, lamb, pi, ll, conv
         zero_elements = window == 0
         zs = zero_elements.sum()
 
@@ -363,6 +479,15 @@ class ZIP(StatModel):
         prev_likelihood = 0.
         likelihoods = []
         u_ele, c_ele = np.unique(window, return_counts=True)
+        if FAST_MATH and _HAS_NUMBA and not self.debug and window.ndim == 1 and _LLCache.supported(u_ele):
+            sum_w = float(window.astype(np.float64).sum())
+            if np.isfinite(sum_w):
+                kf = u_ele.astype(np.float64)
+                lamb, pi, likelihood, conv = _zip_em_nb(kf, gammaln(kf + 1), c_ele.astype(np.float64),
+                                                        bool(u_ele[0] == 0), int(zs), int(I), sum_w,
+                                                        float(lamb), float(pi), float(self.stop_diff),
+                                                        int(self.max_iter), _EPS)
+                return lamb, lamb, pi, likelihood, conv
         if _HAS_NUMBA and not self.debug and window.ndim == 1:
             fast = self._fit_fast(window, zero_elements, u_ele, c_ele, I, lamb, pi)
             if fast is not None:
