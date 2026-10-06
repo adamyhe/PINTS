@@ -31,6 +31,56 @@ except ImportError as e:
 
 __CACHE_KEY_FORMAT__ = "%d-%d"
 
+# Opt-in behaviour fixes (Track B). The defaults reproduce legacy PINTS exactly; `configure_fixes` is called by
+# `peak_calling` before any worker process is created (workers inherit/receive the same settings).
+FIXES = {"iqr_scale": 1.0, "fix_ler_flanks": False}
+
+
+def configure_fixes(iqr_scale=None, fix_ler_flanks=None):
+    """Set opt-in fixes; arguments left as None keep their current value. Returns the active settings."""
+    if iqr_scale is not None:
+        FIXES["iqr_scale"] = float(iqr_scale)
+    if fix_ler_flanks is not None:
+        FIXES["fix_ler_flanks"] = bool(fix_ler_flanks)
+    return dict(FIXES)
+
+
+def ler_candidate_background(coverage_info, b, s, query_end_left, query_start_right, fixed=None):
+    """Background of a LER candidate [b, s): 2.5 kb on each side, with the peak under test masked.
+
+    Legacy (fixed=False) behaviour is kept verbatim: `coverage_info[b - 2500:b]` is empty when b < 2500 (negative
+    slice start, B4b), and the mask offsets are only valid when the tested peak lies inside the candidate's flank;
+    otherwise they wrap / mask an unrelated part of the right flank (B4a).
+    Fixed: flanks are clipped to the chromosome and every base in [query_end_left, query_start_right) is removed.
+    """
+    if fixed is None:
+        fixed = FIXES["fix_ler_flanks"]
+    if not fixed:
+        background_window = np.concatenate((coverage_info[b - 2500:b], coverage_info[s:s + 2500]), axis=None)
+        # mask original peak in question
+        # this is important to assays which have clean bg/sequenced shallowly
+        if query_start_right < b:
+            rs = query_end_left - (b - 2500)
+            re = query_start_right - (b - 2500)
+            background_window[rs:re] = -1
+        elif s < query_end_left:
+            rs = query_end_left - (s - 2500)
+            re = query_start_right - (s - 2500)
+            background_window[rs:re] = -1
+        return background_window[background_window >= 0]
+    lo = max(b - 2500, 0)
+    hi = min(s + 2500, len(coverage_info))
+    parts = []
+    for a0, a1 in ((lo, b), (s, hi)):
+        seg = np.asarray(coverage_info[a0:a1])
+        m0 = min(max(query_end_left - a0, 0), len(seg))
+        m1 = min(max(query_start_right - a0, 0), len(seg))
+        if m1 > m0:
+            seg = np.concatenate((seg[:m0], seg[m1:]), axis=None)
+        parts.append(seg)
+    background_window = np.concatenate(parts, axis=None)
+    return background_window[background_window >= 0]
+
 
 def pval_dist(pval_list, logger, output_diagnostics=True, output_to=None):
     """
@@ -249,6 +299,31 @@ class Poisson(StatModel):
         """
         from scipy.stats import poisson
         return poisson.sf(peak_mu, le_mu)
+
+    @staticmethod
+    def _max_log_likelihood(obs):
+        obs = np.asarray(obs, dtype=float)
+        if obs.size == 0:
+            return 0.
+        m = obs.mean()
+        if m <= 0:
+            return 0.
+        return float(np.sum(poisson.logpmf(obs, m)))
+
+    def lrt(self, group_1_obs, group_2_obs):
+        """Likelihood ratio test: separate Poisson rates vs one shared rate (chi-square, 1 df).
+
+        Returns
+        -------
+        statistic : float
+        p_value : float
+        """
+        g1 = np.asarray(group_1_obs)
+        g2 = np.asarray(group_2_obs)
+        statistic = 2 * (Poisson._max_log_likelihood(g1) + Poisson._max_log_likelihood(g2)
+                         - Poisson._max_log_likelihood(np.concatenate((g1, g2))))
+        statistic = max(statistic, 0.)
+        return statistic, chi2.sf(statistic, df=1)
 
 
 class ZIP(StatModel):
@@ -503,7 +578,7 @@ class ZIP(StatModel):
 
 class IQR(ABC):
     @staticmethod
-    def get_outlier_threshold(data, direction=-1):
+    def get_outlier_threshold(data, direction=-1, scale=None):
         """
         Get outlier threshold
 
@@ -512,6 +587,9 @@ class IQR(ABC):
         data :
         direction : int
             Which direction of outlier threshold to be returned. 1 for upper, 0 for both, -1 for lower
+        scale : float or None
+            Fence multiplier k in Q1 - k*IQR / Q3 + k*IQR. None uses FIXES["iqr_scale"] (legacy 1.0;
+            the PINTS paper and Tukey's rule use 1.5, see --iqr-scale).
         Returns
         -------
         lower_bound : int or None
@@ -522,7 +600,7 @@ class IQR(ABC):
         q1 = np.quantile(data, 0.25)
         q3 = np.quantile(data, 0.75)
         iqr = q3 - q1
-        scale = 1.
+        scale = FIXES["iqr_scale"] if scale is None else float(scale)
         if direction == 1:
             return None, q3 + scale * iqr
         elif direction == -1:
@@ -741,20 +819,8 @@ class bgIQR(IQR):
 
             for k, (b, s) in enumerate(uncertain_re_l):
                 cache_key = __CACHE_KEY_FORMAT__ % (re_coords[k][0], re_coords[k][1])
-                background_window = np.concatenate((coverage_info[b - 2500:b],
-                                                    coverage_info[s:s + 2500]),
-                                                   axis=None)
-                # mask original peak in question
-                # this is important to assays which have clean bg/sequenced shallowly
-                if query_start_right < b:
-                    rs = query_end_left - (b - 2500)
-                    re = query_start_right - (b - 2500)
-                    background_window[rs:re] = -1
-                elif s < query_end_left:
-                    rs = query_end_left - (s - 2500)
-                    re = query_start_right - (s - 2500)
-                    background_window[rs:re] = -1
-                background_window = background_window[background_window >= 0]
+                background_window = ler_candidate_background(coverage_info, b, s, query_end_left,
+                                                             query_start_right)
                 mu_pk, var_pk, pi_pk, llc_pk, _ = stat_tester.fit(coverage_info[b:s])
                 mu_bg, var_bg, pi_bg, llc_bg, _ = stat_tester.fit(background_window)
 
@@ -817,19 +883,8 @@ class pkIQR(IQR):
             re_l.extend(re_r)
             se_l.extend(se_r)
             for k, (b, s) in enumerate(re_l):
-                background_window = np.concatenate((coverage_info[b - 2500:b], coverage_info[s:s + 2500]),
-                                                   axis=None)
-                # mask original peak in question
-                # this is important to assays which have clean bg/sequenced shallowly
-                if query_start_right < b:
-                    rs = query_end_left - (b - 2500)
-                    re = query_start_right - (b - 2500)
-                    background_window[rs:re] = -1
-                elif s < query_end_left:
-                    rs = query_end_left - (s - 2500)
-                    re = query_start_right - (s - 2500)
-                    background_window[rs:re] = -1
-                background_window = background_window[background_window >= 0]
+                background_window = ler_candidate_background(coverage_info, b, s, query_end_left,
+                                                             query_start_right)
                 mu_pk, var_pk, pi_pk, llc_pk, _ = stat_tester.fit(coverage_info[b:s])
                 mu_bg, var_bg, pi_bg, llc_bg, _ = stat_tester.fit(background_window)
 
@@ -932,6 +987,9 @@ def independent_filtering(df, fdr_target=0.1, output_to=None, logger=None, **kwa
     final_df = df.copy()
     final_df["padj"] = direct_padj
     final_df.loc[select_probe, "padj"] = adjusted_df["padj"]
+    if kwargs.get("strict_independent_filtering", False) and select_probe is not None:
+        # Bourgon et al. 2010: hypotheses removed by the filter are not tested -> padj = 1 (not significant)
+        final_df.loc[~select_probe, "padj"] = 1.
     quantiles_tested_arr = np.asarray(quantiles_tested)
     windows_rejected_arr = np.asarray(windows_rejected)
     if kwargs.get("output_diagnostics", False) and output_to is not None:

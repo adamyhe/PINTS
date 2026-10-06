@@ -645,7 +645,7 @@ def cut_peaks_dry_run(annotation_gtf, pl_cov_files, mn_cov_files, tss_extension=
 
 
 def cut_peaks(window, donor_tolerance, ce_trigger, join_distance=1, peak_rel_height=1.,
-              max_distance=30):
+              max_distance=30, peak_width=None):
     """
     Cut peaks from the given window
 
@@ -663,12 +663,18 @@ def cut_peaks(window, donor_tolerance, ce_trigger, join_distance=1, peak_rel_hei
         Used for calculation of the peaks width, thus it is only used if width is given.
     max_distance : int
         max distance between two subpeaks to be joined, by default, 20
+    peak_width : int or None
+        Required width of peaks in samples (`width` of scipy.signal.find_peaks, measured at peak_rel_height).
+        None (default) applies no width requirement.
     Returns
     -------
     merged_intervals : list
         List of tuples of merged intervals [(start_1, end_1), ... , (start_n, end_n)]
     """
-    peaks, _ = find_peaks(window, rel_height=peak_rel_height)
+    if peak_width is None:
+        peaks, _ = find_peaks(window, rel_height=peak_rel_height)
+    else:
+        peaks, _ = find_peaks(window, rel_height=peak_rel_height, width=peak_width)
     _, _, starts, ends = peak_widths(window, peaks, rel_height=peak_rel_height)
     intervals = []
     for k, start in enumerate(starts):
@@ -1136,10 +1142,18 @@ def _context_for(index, lines, lo, hi):
     return [lines[i] for i in index.indices(q0, q1)]
 
 
-def _worker_init(model_name, iqr_name):
+def _stringent_only(kwargs):
+    """`--stringent-pairs-only` is stored as `stringent_pairs_only` by the CLI; `stringent_only` by the API."""
+    return bool(kwargs.get("stringent_only", kwargs.get("stringent_pairs_only", False))
+                or kwargs.get("stringent_pairs_padj", False))
+
+
+def _worker_init(model_name, iqr_name, fixes=None):
     """Pool initializer: make the statistical model/IQR strategy available in every worker (spawn-safe)."""
     global stat_tester, iqr_obj
     from . import stats_engine as _se
+    if fixes:
+        _se.configure_fixes(**fixes)
     stat_tester = getattr(_se, model_name)() if model_name else None
     iqr_obj = getattr(_se, iqr_name)() if iqr_name else None
 
@@ -1152,8 +1166,9 @@ def _make_pool(n):
         ctx = mp.get_context("fork")
     except ValueError:  # pragma: no cover - platforms without fork
         ctx = mp.get_context()
+    from .stats_engine import FIXES
     init_args = (type(stat_tester).__name__ if stat_tester is not None else None,
-                 type(iqr_obj).__name__ if iqr_obj is not None else None)
+                 type(iqr_obj).__name__ if iqr_obj is not None else None, dict(FIXES))
     return ctx.Pool(n, initializer=_worker_init, initargs=init_args)
 
 
@@ -1203,9 +1218,10 @@ def _phase(label, t0=[None]):
     t0[0] = now
 
 
-def _element_definition_task(chrom_coverage, chromosome, sign, output_file, ce_donor, join_distance, ce_trigger):
+def _element_definition_task(chrom_coverage, chromosome, sign, output_file, ce_donor, join_distance, ce_trigger,
+                             peak_width=None):
     return unified_element_definition(chrom_coverage, chromosome, sign, output_file, ce_donor=ce_donor,
-                                      join_distance=join_distance, ce_trigger=ce_trigger)
+                                      join_distance=join_distance, ce_trigger=ce_trigger, peak_width=peak_width)
 
 
 def _coverage_cost(coverage_dicts, chromosome):
@@ -1570,6 +1586,7 @@ def merge_opposite_peaks(sig_peak_bed, peak_candidate_bed, divergent_output_bed,
     sfp_fh = open(singleton_bed, "w")  # singletons failed to pair
     close_threshold = kwargs.get("close_threshold", 300)
     min_len_opposite_peaks = kwargs.get("min_len_opposite_peaks", 0)
+    stringent_padj = kwargs.get("stringent_pairs_padj", False)
     for _, line in enumerate(fh):
         items = line.strip().split("\t")
         start = int(items[1])
@@ -1612,7 +1629,9 @@ def merge_opposite_peaks(sig_peak_bed, peak_candidate_bed, divergent_output_bed,
                 # filter peaks on the other strand which are shorter than a threshold
                 if min_len_opposite_peaks > 0 and hit_end - hit_start < min_len_opposite_peaks:
                     continue
-                if stringent_only and float(hit[7]) > fdr_target:
+                if stringent_only and (hit_score >= fdr_target if stringent_padj else float(hit[7]) > fdr_target):
+                    # --stringent-pairs-only: the opposite peak must itself be significant; by its raw p-value
+                    # (column 8, as documented for the CLI flag) or, with --stringent-pairs-padj, by padj (column 5)
                     continue
                 opposite_starts.append(hit_start)
                 opposite_ends.append(hit_end)
@@ -1869,7 +1888,7 @@ def _blockwise_element_definition(coverage_dict, chromosome_of_interest, subpeak
 
 
 def unified_element_definition(coverage_dict, chromosome_of_interest, strand_sign, output_file,
-                               join_distance=1, ce_donor=1.0, ce_trigger=3):
+                               join_distance=1, ce_donor=1.0, ce_trigger=3, peak_width=None):
     """
     Unified element boundary definition
     If multiple replicates are present, then this function will merge all signal tracks together
@@ -1918,7 +1937,8 @@ def unified_element_definition(coverage_dict, chromosome_of_interest, strand_sig
             sub_peaks = cut_peaks(merged_coverage[row_start:row_end],
                                   donor_tolerance=ce_donor,
                                   ce_trigger=ce_trigger,
-                                  join_distance=join_distance)
+                                  join_distance=join_distance,
+                                  peak_width=peak_width)
             for sp in sub_peaks:
                 start = sp[0] + row_start
                 end = sp[1] + row_start
@@ -2108,10 +2128,11 @@ def pair(sample_prefix, df_dict, fdr_target, stringent_only, specific_suffix="",
                 tmp_mn_bed = BedTool(exp_mn_file)
                 if tmp_pl_bed.count() == 0 and tmp_mn_bed.count() == 0:
                     continue
-                elif tmp_pl_bed.count() == 0:
-                    pri_merged_file = tmp_mn_bed
-                elif tmp_mn_bed.count() == 0:
-                    pri_merged_file = tmp_pl_bed
+                elif tmp_pl_bed.count() == 0 or tmp_mn_bed.count() == 0:
+                    # only one strand produced pairs: merge it on its own (previously the raw 16-column
+                    # records were parsed with 8 names, giving a malformed BED)
+                    pri_merged_file = (tmp_mn_bed if tmp_pl_bed.count() == 0 else tmp_pl_bed).sort().merge(
+                        c=(12, 13, 14, 15, 16), o=("collapse", "collapse", "collapse", "collapse", "distinct"))
                 else:
                     pri_merged_file = BedTool.cat(*[BedTool(exp_pl_file),
                                                     BedTool(exp_mn_file)],
@@ -2423,6 +2444,9 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
     pybedtools.set_tempdir(pybdt_tmp)
 
     log_assert(model in ("Poisson", "ZIP"), "Unsupported model", logger)
+    # opt-in fixes (defaults reproduce legacy results); set before any worker process exists
+    from .stats_engine import configure_fixes
+    configure_fixes(iqr_scale=kwargs.get("iqr_scale", 1.0), fix_ler_flanks=kwargs.get("fix_ler_flanks", False))
     if model == "ZIP":
         stat_tester = ZIP()
     elif model == "Poisson":
@@ -2467,7 +2491,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
     subpeak_pl_beds = {}
     subpeak_mn_beds = {}
     if kwargs.get("annotation_gtf", None) is not None:
-        highlight_chromosome = kwargs.get("highlight_chromosome", "chr1")
+        highlight_chromosome = kwargs.get("highlight_chromosome", kwargs.get("focused_chrom", "chr1"))
         log_assert(os.path.exists(kwargs.get("annotation_gtf", None)), "Cannot find gene annotation file", logger)
         if highlight_chromosome in chromosome_coverage_pl[0]:
             kwargs["donor_tolerance"] = cut_peaks_dry_run(kwargs.get("annotation_gtf", None), chromosome_coverage_pl,
@@ -2490,7 +2514,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
             ued_keys.append((target_dict, chromosome))
             ued_tasks.append((chrom_coverage, chromosome, sign, prefix + "_{0}.bed".format(strand_short),
                               kwargs.get("donor_tolerance", 0.3), kwargs.get("peak_distance", 1),
-                              kwargs.get("ce_trigger", 3)))
+                              kwargs.get("ce_trigger", 3), kwargs.get("peak_width", None)))
             ued_costs.append(_coverage_cost(chrom_coverage, chromosome))
     _phase("input parsing")
     ued_res = _run_tasks(pool, _element_definition_task, ued_tasks, costs=ued_costs)
@@ -2591,7 +2615,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
                 n_significant += np.sum(peak_df["padj"] < fdr_target)
                 df_dict[label] = peak_df
             deferred_pairing[rep] = (n_significant, pool.apply_async(
-                _pair_task, (sample_prefix, df_dict, fdr_target, kwargs.get("stringent_only", False), kwargs)))
+                _pair_task, (sample_prefix, df_dict, fdr_target, _stringent_only(kwargs), kwargs)))
     # peak calling (IQR)
     for rep, pl_cov_dict in enumerate(chromosome_coverage_pl):
         logger.info("Working on sample %d" % (rep + 1))
@@ -2636,7 +2660,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
 
         logger.info("Pairing peaks")
         (bid, div, unid), gc = pair(sample_prefix, df_dict=df_dict, fdr_target=fdr_target,
-                                    stringent_only=kwargs.get("stringent_only", False), **kwargs)
+                                    stringent_only=_stringent_only(kwargs), **kwargs)
         # reformat unidirectional output
         unid_df = pd.read_csv(unid, sep="\t", names=COMMON_HEADER)
         unid_df[["chromosome", "start", "end", "name", "padj", "strand",
@@ -2658,7 +2682,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
 
             relaxed_fdr = kwargs.get("relaxed_fdr_target", fdr_target * 2)
             (r_bid, r_div, r_unid), r_gc = pair(sample_prefix, df_dict=df_dict, fdr_target=relaxed_fdr,
-                                                stringent_only=kwargs.get("stringent_only", False),
+                                                stringent_only=_stringent_only(kwargs),
                                                 specific_suffix="_EA", **kwargs)
             r_unid_df = pd.read_csv(r_unid, sep="\t", names=COMMON_HEADER)
             r_unid_df[["chromosome", "start", "end", "name", "padj", "strand",
