@@ -23,7 +23,7 @@ setup(
         "biopython",
         "matplotlib",
     ),
-    extras_require={},
+    extras_require={"fast": ["numba>=0.56"]},
     scripts=["scripts/pints_caller", "scripts/pints_normalizer", "scripts/pints_visualizer",
              "scripts/pints_boundary_extender", "scripts/pints_counter", "scripts/pints_sample_qc"],
     url="https://pints.yulab.org",
