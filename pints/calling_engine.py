@@ -1064,6 +1064,15 @@ def _indexed_call(i, func, args):
     return i, func(*args)
 
 
+def _phase(label, t0=[None]):
+    """Wall-clock phase markers on stderr when PINTS_PHASE_TIMING is set (diagnostics only)."""
+    import time
+    now = time.perf_counter()
+    if os.environ.get("PINTS_PHASE_TIMING"):
+        sys.stderr.write("[phase] %-28s %8.2fs\n" % (label, now - (t0[0] if t0[0] is not None else now)))
+    t0[0] = now
+
+
 def _element_definition_task(chrom_coverage, chromosome, sign, output_file, ce_donor, join_distance, ce_trigger):
     return unified_element_definition(chrom_coverage, chromosome, sign, output_file, ce_donor=ce_donor,
                                       join_distance=join_distance, ce_trigger=ce_trigger)
@@ -1130,7 +1139,9 @@ def evaluate_strand_jobs(jobs, fdr_target, pool=None, thread_n=1, **kwargs):
         for a, b in ranges:
             p1_tasks.append((u[2], u[1], u[4], raw[a:b], small_peak_threshold))
             p1_owner.append(ui)
+    _phase("phase1 setup")
     p1_res = _run_tasks(pool, _subpeak_block_stats, p1_tasks, costs=[len(t[3]) for t in p1_tasks])
+    _phase("phase1 stats")
 
     ctxs = []
     for ui, u in enumerate(units):
@@ -1144,6 +1155,7 @@ def evaluate_strand_jobs(jobs, fdr_target, pool=None, thread_n=1, **kwargs):
         ctxs.append(_subpeak_thresholds(u[3], u[1], u[5], out_lines, mus, err, min_mu_percent=min_mu_percent,
                                         disable_qc=disable_qc, enable_eler=enable_eler, eler_min=eler_min))
 
+    _phase("phase1 thresholds")
     # ---- phase 2: local-environment tests, in independent chunks
     total2 = sum(len(c["lines"]) for c in ctxs if c["error"] is None)
     target = max(_MIN_P2_CHUNK, total2 // (workers * 8) + 1) if pool is not None else 0
@@ -1159,7 +1171,9 @@ def evaluate_strand_jobs(jobs, fdr_target, pool=None, thread_n=1, **kwargs):
             p2_tasks.append((u[2], u[1], lines[lo:hi], context, slim, fdr_target, disable_ler, sensitive,
                              fc_cutoff, init_dens_cutoff, init_height_cutoff))
             p2_owner.append(ui)
+    _phase("phase2 setup")
     p2_res = _run_tasks(pool, _check_window_block, p2_tasks, costs=[len(t[2]) for t in p2_tasks])
+    _phase("phase2 tests")
 
     per_unit_bins = [[] for _ in units]
     stopped = [False] * len(units)
@@ -2209,7 +2223,9 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
                               kwargs.get("donor_tolerance", 0.3), kwargs.get("peak_distance", 1),
                               kwargs.get("ce_trigger", 3)))
             ued_costs.append(_coverage_cost(chrom_coverage, chromosome))
+    _phase("input parsing")
     ued_res = _run_tasks(pool, _element_definition_task, ued_tasks, costs=ued_costs)
+    _phase("element definition")
     # results are consumed in the original (chromosome, strand) order
     for (target_dict, chromosome), res in zip(ued_keys, ued_res):
         target_dict[chromosome] = res
@@ -2263,6 +2279,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
                 eval_keys.append((rep, label))
         for key, res in zip(eval_keys, evaluate_strand_jobs(eval_jobs, fdr_target, pool=pool, **kwargs)):
             precomputed[key] = res
+    _phase("input normalisation/eval")
     # peak calling (IQR)
     for rep, pl_cov_dict in enumerate(chromosome_coverage_pl):
         logger.info("Working on sample %d" % (rep + 1))
@@ -2367,6 +2384,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
     if is_borrow_info_from_reps and len(chromosome_coverage_pl) > 1:
         logger.info("Enhanced support for biological replicates is enabled.")
         inferring_elements_from_other_reps(prefix=prefix, n_samples=len(chromosome_coverage_pl))
+    _phase("filtering+pairing+qc")
     if pool is not None:
         pool.close()
         pool.join()
