@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Entry point: bench/run <command> [args]   (see bench/README.md)
+set -euo pipefail
+KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORK="${PINTS_BENCH_WORK:-$(dirname "$KIT")/bench_work}"
+[ -f "$WORK/env.sh" ] || { echo "run bench/setup.sh first (looked for $WORK/env.sh)" >&2; exit 1; }
+# shellcheck disable=SC1091
+source "$WORK/env.sh"
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  fetch) exec "$PINTS_BENCH_PYTHON" "$KIT/fetch_data.py" "$@" ;;
+  plan|exec|status|report|sysinfo) exec "$PINTS_BENCH_PYTHON" "$KIT/bench.py" "$cmd" "$@" ;;
+  *) echo "usage: bench/run {fetch|plan|exec|status|report|sysinfo} [args]" >&2; exit 2 ;;
+esac

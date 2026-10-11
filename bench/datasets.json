@@ -1,0 +1,487 @@
+{
+ "description": "PINTS benchmark datasets (public ENCODE + PINTS test data). Downloaded and prepared by bench/fetch_data.py; local paths are written to <work>/manifest.json.",
+ "datasets": [
+  {
+   "id": "T1_bw",
+   "split": "tuning",
+   "description": "chr22 test bigWigs shipped with PINTS (tests/datasets)",
+   "local": {
+    "bw_pl": [
+     "tests/datasets/pl.chr22.bw"
+    ],
+    "bw_mn": [
+     "tests/datasets/mn.chr22.bw"
+    ]
+   }
+  },
+  {
+   "id": "T1_bam",
+   "split": "tuning",
+   "description": "chr22 test BAM shipped with PINTS (tests/datasets)",
+   "local": {
+    "bam": [
+     "tests/datasets/chr22.bam"
+    ]
+   },
+   "exp_type": "GROcap"
+  },
+  {
+   "id": "T1_bam_ct",
+   "split": "tuning",
+   "description": "chr22 test BAM + input control shipped with PINTS (tests/datasets)",
+   "local": {
+    "bam": [
+     "tests/datasets/chr22.bam"
+    ],
+    "ct_bam": [
+     "tests/datasets/input.chr22.bam"
+    ]
+   },
+   "exp_type": "GROcap"
+  },
+  {
+   "id": "T2_bam_k562",
+   "split": "tuning",
+   "description": "K562 PRO-cap (Lis) rep1, chr1+chr21+chrX",
+   "encode_experiment": "ENCSR261KBX",
+   "files": {
+    "bam": [
+     {
+      "accession": "ENCFF877SQU",
+      "md5": "904a34b13eb6c32e2e82e73258bf40ca",
+      "size": 167574857
+     }
+    ]
+   },
+   "subset_chroms": [
+    "chr1",
+    "chr21",
+    "chrX"
+   ],
+   "sha256_biomni": {
+    "T2_bam_k562_ENCFF877SQU.bam": "edaa2f33afdba8df35e1605146cf2e8c70fc7582dc41f14aad670e6b4d1cd6a5"
+   },
+   "exp_type": "R1_5",
+   "extra_args": [
+    "--reverse-complement"
+   ],
+   "note": "PE PRO-cap: RNA 5' end = R1 5' end, reverse-complemented (verified vs ENCODE 5' bigWig counts)"
+  },
+  {
+   "id": "T3_bw_gw_a549",
+   "split": "tuning",
+   "description": "A549 PRO-cap rep1 5' bigWigs, genome-wide",
+   "encode_experiment": "ENCSR219IHS",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF114JYO",
+      "md5": "1c83b103ab0d3516acf895ddcf22bebc",
+      "size": 6775104
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF547RPM",
+      "md5": "dd1d2ee2a785698746d6167befdc8268",
+      "size": 6695994
+     }
+    ]
+   },
+   "sha256_biomni": {
+    "ENCFF114JYO.bigWig": "561f9666ff6cab7678fc2d6611b3afdd5d841f1ac69a707b20aac437e3b41c2f",
+    "ENCFF547RPM.bigWig": "b0f87e42a18400ec4416b0215f2f6bec5d2e781a0319846da42e329b9160af3d"
+   }
+  },
+  {
+   "id": "T4_bam_reps_hct116",
+   "split": "tuning",
+   "description": "HCT116 PRO-cap 2 reps, chr17-chr22",
+   "encode_experiment": "ENCSR871CUV",
+   "files": {
+    "bam": [
+     {
+      "accession": "ENCFF137EGF",
+      "md5": "529310165f783ed39a76691bde29235e",
+      "size": 696767656
+     },
+     {
+      "accession": "ENCFF614CKJ",
+      "md5": "d4323cf913da8d89ed25d8e0ea7bd823",
+      "size": 1253995272
+     }
+    ]
+   },
+   "subset_chroms": [
+    "chr17",
+    "chr18",
+    "chr19",
+    "chr20",
+    "chr21",
+    "chr22"
+   ],
+   "sha256_biomni": {
+    "T4_bam_reps_hct116_ENCFF137EGF.bam": "d1ef8c8cddf3032779444bc3c2dec59022cee6cdf4fc01d8c06faf64ee4a3812",
+    "T4_bam_reps_hct116_ENCFF614CKJ.bam": "6323ce0fb8acd148a98743daaac4de1473482c2b2dd5924e9930adaacab3fb29"
+   },
+   "exp_type": "R1_5",
+   "extra_args": [
+    "--reverse-complement"
+   ],
+   "note": "PE PRO-cap: RNA 5' end = R1 5' end, reverse-complemented (verified vs ENCODE 5' bigWig counts)"
+  },
+  {
+   "id": "T5_bam_ct_k562_grocap",
+   "split": "tuning",
+   "description": "K562 GRO-cap + TAP- input, chr19-chr22",
+   "encode_experiment": "ENCSR363AKK+ENCSR626ZNW",
+   "files": {
+    "bam": [
+     {
+      "accession": "ENCFF112MXH",
+      "md5": "0949ee7a94581c5c2bc1e0d5ac2a03fd",
+      "size": 741633983
+     }
+    ],
+    "ct_bam": [
+     {
+      "accession": "ENCFF627RSV",
+      "md5": "9ec3f8f595cc0233374f7603bdeab16d",
+      "size": 339946802
+     }
+    ]
+   },
+   "subset_chroms": [
+    "chr19",
+    "chr20",
+    "chr21",
+    "chr22"
+   ],
+   "sha256_biomni": {
+    "T5_bam_ct_k562_grocap_ENCFF112MXH.bam": "6df9c8a19213c1c401ebad665058818435e69c1d5abc52fdcee0c19532d343e7",
+    "T5_bam_ct_k562_grocap_ENCFF627RSV.bam": "111a79f1f7ef318d3efacaf58664dc9faabcb3a65093b25d5819e793176f440e"
+   },
+   "exp_type": "GROcap"
+  },
+  {
+   "id": "H1_bam_reps_karpas422",
+   "split": "holdout",
+   "description": "Karpas-422 PRO-cap 2 reps BAM, GW",
+   "encode_experiment": "ENCSR245UIS",
+   "files": {
+    "bam": [
+     {
+      "accession": "ENCFF738OWS",
+      "md5": "026210cc6e2bb8977ab75407f919f826",
+      "size": 478714737
+     },
+     {
+      "accession": "ENCFF963TFY",
+      "md5": "82212be49a2d1f6ebbdc4858ce60c7a8",
+      "size": 273225140
+     }
+    ]
+   },
+   "sha256_biomni": {
+    "ENCFF738OWS.bam": "7bdb9787acd23a1388b492685dce6a1e06e8d0f347bdb4b4d9a51553310c68a0",
+    "ENCFF963TFY.bam": "3212d2a2844a11961116097c03a834b2e8e519c34b9e12a93cf4af7d0376506e"
+   },
+   "exp_type": "R1_5",
+   "extra_args": [
+    "--reverse-complement"
+   ],
+   "note": "PE PRO-cap: RNA 5' end = R1 5' end, reverse-complemented (verified vs ENCODE 5' bigWig counts)"
+  },
+  {
+   "id": "H2_bw_caco2",
+   "split": "holdout",
+   "description": "Caco-2 PRO-cap rep1 5' bigWigs, GW",
+   "encode_experiment": "ENCSR100LIJ",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF320FTM",
+      "md5": "100a40a0e35db7f918c307427712e0e1",
+      "size": 14057310
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF635VJZ",
+      "md5": "cff36e268f94fe3d42b2289342b30167",
+      "size": 16926132
+     }
+    ]
+   },
+   "sha256_biomni": {
+    "ENCFF320FTM.bigWig": "17088dac910a48a7452d457dc0e8b03b2491a9cf5b479c38ca817e30536027ce",
+    "ENCFF635VJZ.bigWig": "0cad51bbc98fa68d78081b1c60a56c0edddc8a209791ac5ff8ef0edc2d2d9b77"
+   }
+  },
+  {
+   "id": "H3_bam_ct_gm12878_grocap",
+   "split": "holdout",
+   "description": "GM12878 GRO-cap + TAP- input BAM, GW",
+   "encode_experiment": "ENCSR719WNF+ENCSR521SWL",
+   "files": {
+    "bam": [
+     {
+      "accession": "ENCFF740NAF",
+      "md5": "71b63af7e7784fd2095f17565ad9d0ea",
+      "size": 753491517
+     }
+    ],
+    "ct_bam": [
+     {
+      "accession": "ENCFF131IAM",
+      "md5": "e18111c62300d157678736ecf31b83b4",
+      "size": 241603180
+     }
+    ]
+   },
+   "sha256_biomni": {
+    "ENCFF740NAF.bam": "a4b6d06bf5df43ceeea78398e36823bf93556c9541fbb61d54251fb181a1eba5",
+    "ENCFF131IAM.bam": "b61dc22e8de7a7b21a5c2a40fba5d5ee65f36bf095477f025046eb1857aee366"
+   },
+   "exp_type": "GROcap"
+  },
+  {
+   "id": "H4_bw_liver",
+   "split": "holdout",
+   "description": "Liver tissue PRO-cap 5' bigWigs, GW",
+   "encode_experiment": "ENCSR753TEA",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF530CWG",
+      "md5": "d7ad9e387a68c111219ebafa67d01b4c",
+      "size": 12072928
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF898WWI",
+      "md5": "7b8a269c1b9fe9f76161c49732917eb4",
+      "size": 12009112
+     }
+    ]
+   },
+   "sha256_biomni": {
+    "ENCFF530CWG.bigWig": "06f135ecc7d90e17383e3d153bf846c35431bdad7aa955926b8fe8a0adecf98b",
+    "ENCFF898WWI.bigWig": "a85663da212530812c9ae4f6ea4d5e3bbb4581349f08d25dc1651bfdff8edd69"
+   }
+  },
+  {
+   "id": "H5_bw_nochr_caco2r2",
+   "split": "holdout",
+   "description": "Caco-2 rep2 5' bigWigs with 'chr' prefix stripped (Ensembl-style names), GW",
+   "encode_experiment": "ENCSR100LIJ",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF790ZZN",
+      "md5": "dda29cf1713c9e63b7c66d5738b5f5a6",
+      "size": 16186005
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF174MJP",
+      "md5": "592fab142af01ecbacd0cfe09f745775",
+      "size": 16034179
+     }
+    ]
+   },
+   "strip_chr": true,
+   "sha256_biomni": {
+    "H5_bw_nochr_caco2r2_ENCFF790ZZN.bw": "693488bf5538f939f0d6fac950a285c52bd54414757f5d68ce7838ab654d5b43",
+    "H5_bw_nochr_caco2r2_ENCFF174MJP.bw": "dbe580e340aedd6b04de99d0a678647ff1577e730d038d5fffa1e3ec8bd3e11e"
+   }
+  },
+  {
+   "id": "H6_bam_reps_bw_a549r2_karpas",
+   "split": "holdout",
+   "description": "A549 rep2 BAM, GW (BAM path, different cell line from bigWig tuning set)",
+   "encode_experiment": "ENCSR219IHS",
+   "files": {
+    "bam": [
+     {
+      "accession": "ENCFF774WNX",
+      "md5": "82bac622f0c16bfb3abcd1f6ea28b6a4",
+      "size": 558048715
+     }
+    ]
+   },
+   "sha256_biomni": {
+    "ENCFF774WNX.bam": "b2a213d5539d4ddb768b9a76ecb461931336b79b9179c9db0825c4f1661ea182"
+   },
+   "exp_type": "R1_5",
+   "extra_args": [
+    "--reverse-complement"
+   ],
+   "note": "PE PRO-cap: RNA 5' end = R1 5' end, reverse-complemented (verified vs ENCODE 5' bigWig counts)"
+  },
+  {
+   "id": "H7_batch_spleen",
+   "split": "holdout",
+   "description": "batch member (spleen), GW bigWig",
+   "encode_experiment": "ENCSR797AOQ",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF488UTK",
+      "md5": "1f530bf2ac32771a51e225566455d468",
+      "size": 11880441
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF914OVT",
+      "md5": "faff5a592c72d5a3abc4ac078657488b",
+      "size": 11839300
+     }
+    ]
+   },
+   "batch": "H7",
+   "sha256_biomni": {
+    "ENCFF488UTK.bigWig": "79ed55773db5721c04dcae4271cdc70fae00f9004ed9f0140f57c21486ecd054",
+    "ENCFF914OVT.bigWig": "0bec6212d20283d88405ca91868b9b636e4cce6a3344e7bc0c4a5d54ec7d284d"
+   }
+  },
+  {
+   "id": "H7_batch_testis",
+   "split": "holdout",
+   "description": "batch member (testis), GW bigWig",
+   "encode_experiment": "ENCSR305RPP",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF292MBF",
+      "md5": "504d0bfe19128347c1ac880a075949eb",
+      "size": 15659294
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF867UGD",
+      "md5": "821bb89ee5f6ae77364f503700cd3609",
+      "size": 15572964
+     }
+    ]
+   },
+   "batch": "H7",
+   "sha256_biomni": {
+    "ENCFF292MBF.bigWig": "d715c69588e42547d9672aa21a0320a6c8bb312df9980a089fa55984d5be0daa",
+    "ENCFF867UGD.bigWig": "35f51154d8318738923f9a76f7fa0407028a6a41cb9285340909c6ef9668ef57"
+   }
+  },
+  {
+   "id": "H7_batch_kidney",
+   "split": "holdout",
+   "description": "batch member (kidney), GW bigWig",
+   "encode_experiment": "ENCSR660UDB",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF163OAY",
+      "md5": "3555968e7a00c3b2915249c035b31fb3",
+      "size": 14515143
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF159IQS",
+      "md5": "31c6bf794ef8f4faca6907256ee4a413",
+      "size": 14376378
+     }
+    ]
+   },
+   "batch": "H7",
+   "sha256_biomni": {
+    "ENCFF163OAY.bigWig": "18ee1a21e64309ee3ebc00db5d054811cdbb199abcc3d425a04dbab7d3968c50",
+    "ENCFF159IQS.bigWig": "c8d1f72c6947a6fc18f80c29bb48a7dad7e5ae8f723cb9172b528520245ee03c"
+   }
+  },
+  {
+   "id": "H7_batch_liver2",
+   "split": "holdout",
+   "description": "batch member (liver2), GW bigWig",
+   "encode_experiment": "ENCSR072JHG",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF710FSS",
+      "md5": "fa96d1c8c3d08246fc8dd36cb559fc79",
+      "size": 12374362
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF351WTC",
+      "md5": "3e4fb28bf48898d53f2e69d2c6a39b20",
+      "size": 12396768
+     }
+    ]
+   },
+   "batch": "H7",
+   "sha256_biomni": {
+    "ENCFF710FSS.bigWig": "23ff810f02fc485e3ddd97e2f88c1a2df259e5a807ca35561f88affb568b14fb",
+    "ENCFF351WTC.bigWig": "99aa7ec51eb23b0048e482445c21aa49ac134451379a7a27c61f7a42b685e5a9"
+   }
+  },
+  {
+   "id": "H7_batch_cerebellum",
+   "split": "holdout",
+   "description": "batch member (cerebellum), GW bigWig",
+   "encode_experiment": "ENCSR053UMZ",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF917ZTH",
+      "md5": "29f77a8733b276d53ba05720d9195cdf",
+      "size": 7911292
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF311FGM",
+      "md5": "2079facac53202edb95840a1ca7bfdbd",
+      "size": 7880473
+     }
+    ]
+   },
+   "batch": "H7",
+   "sha256_biomni": {
+    "ENCFF917ZTH.bigWig": "f0f2195d58edb3c1c63da3e73224217ed7203985d55f000856bd266be1d5c985",
+    "ENCFF311FGM.bigWig": "917142290c816afda11d74b8c48ee0dff0d056b00ba85f99c80a5e0690dabdb1"
+   }
+  },
+  {
+   "id": "H7_batch_testis_b",
+   "split": "holdout",
+   "description": "batch member (testis_b), GW bigWig",
+   "encode_experiment": "ENCSR305RPP",
+   "files": {
+    "bw_pl": [
+     {
+      "accession": "ENCFF257XGW",
+      "md5": "f9effeabf9d26292d9ddf574c6285a78",
+      "size": 14271449
+     }
+    ],
+    "bw_mn": [
+     {
+      "accession": "ENCFF212GIQ",
+      "md5": "f8e34f7431157a75ae370e169211720e",
+      "size": 14208054
+     }
+    ]
+   },
+   "batch": "H7",
+   "sha256_biomni": {
+    "ENCFF257XGW.bigWig": "33f389c8b2dfa6abf2205ebc1422e4f5230413b5b4817c6c3b3f3b93144da8c9",
+    "ENCFF212GIQ.bigWig": "668f59bb523fa8e90c1d4e459900d6d0d00c61086aa37108f00dd8c7fe158e2e"
+   }
+  }
+ ]
+}
