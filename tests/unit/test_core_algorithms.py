@@ -154,10 +154,9 @@ def test_zip_lrt_different_groups_significant():
     assert stat > 100 and p < 1e-20
 
 
-def test_poisson_model_cannot_be_instantiated():
-    # Characterises current behaviour: Poisson lacks `lrt`, so `--model Poisson` crashes (probe B13)
-    with pytest.raises(TypeError):
-        Poisson()
+def test_poisson_model_can_be_instantiated():
+    # B13 fixed in Track B: Poisson implements `lrt`, so `--model Poisson` no longer crashes
+    assert isinstance(Poisson(), Poisson)
 
 
 def test_poisson_model_methods():
