@@ -45,10 +45,10 @@ Set `PINTS_BENCH_WORK=/fast/disk/pints_bench` before `setup.sh` (and keep it set
 | tier | equivalence | timing | scaling | rough duration |
 |---|---|---|---|---|
 | `smoke` | T1_bw, T1_bam, default config, all variants | ref/gate1/gate2 at 1 and 8 threads | T1_bam, 1–8 threads | ~15 min |
-| `standard` | all 19 datasets × {default, sensitive, disable_small} × all variants at 32 threads, plus determinism checks for gate1 (1 thread, hash seed 1234, all CPUs) on T1–T5 | 8 datasets (T2–T5, H1–H3, H6) × {1, 16, 64} threads × 3 reps (ref at 1 thread: 1 rep) | T3, T4, H1, H3: gate1/gate2 at 1–64 threads and all CPUs, 2 reps; ref at 1/4/16/64 | `plan` prints an estimate; expect 1–2 days |
-| `full` | as standard, determinism also on H1–H3 | all 19 datasets, + all CPUs, 3 reps | 8 datasets, 10 thread counts, 3 reps | several days |
+| `standard` | all 19 datasets × {default, sensitive, disable_small} × all variants at 32 threads, plus determinism checks for gate1 (1 thread, hash seed 1234, all CPUs) on T1–T5 | 8 datasets (T2–T5, H1–H3, H6) × {1, 16, 64} threads × 3 reps (ref at 1 thread: 1 rep) | T3, T4, H1, H3: gate1/gate2 at 1–64 threads and all CPUs, 2 reps; ref at 1/4/16/64 | ~67 h sequential at 64 CPUs, ~50 h with `exec --parallel 2` (about 2 days) |
+| `full` | as standard, determinism also on H1–H3 | all 19 datasets, + all CPUs, 3 reps | 8 datasets, 10 thread counts, 3 reps | ~130 h sequential, ~115 h with `--parallel 2` (about 5 days) |
 
-Run `bench/run plan --tier <t>` to see the job count and estimated hours for the machine you are on. Thread counts are capped at the CPUs available to the process. `--max-threads N` lowers the cap, and `--datasets a,b` restricts the plan to some datasets. Most of the time goes to the reference at 1 thread on genome-wide BAMs, which Biomni measured at 30+ minutes per run.
+Run `bench/run plan --tier <t>` to see the job count and estimated hours for the machine you are on. Thread counts are capped at the CPUs available to the process. `--max-threads N` lowers the cap, and `--datasets a,b` restricts the plan to some datasets. Most of the time goes to the reference: it barely scales with threads, and Biomni measured 30+ minutes per run on genome-wide data even at 16 threads for the larger sets. To get results sooner, run `bench/run exec --suites equivalence --parallel 2` first, then `bench/run report` (a partial report is fine), then the timing and scaling suites.
 
 ## What is measured
 

@@ -79,7 +79,8 @@ EST = {
     "T4_bam_reps_hct116": (1930, 834, 244, 39), "T5_bam_ct_k562_grocap": (643, 455, 88, 19),
     "_gw_bw": (2400, 600, 450, 60), "_gw_bam": (6000, 2500, 800, 100), "_gw_bam_ct": (7000, 3000, 1200, 176),
 }
-CONFIG_FACTOR = {"default": (1.0, 1.0), "sensitive": (1.2, 1.45), "disable_small": (0.95, 0.85)}
+# (ref, optimised) runtime relative to the default config; T2 (local) and T3 (Biomni) measurements
+CONFIG_FACTOR = {"default": (1.0, 1.0), "sensitive": (1.05, 2.0), "disable_small": (1.9, 1.3)}
 
 
 # ======================================================================================== helpers
@@ -509,8 +510,14 @@ def cmd_exec(a):
     excl = [j for j in todo if j["exclusive"]]
     n, i = len(todo), [0]
     failures = []
+    streak = [0]
+
+    class Abort(Exception):
+        pass
 
     def one(j):
+        if a.max_consecutive_failures and streak[0] >= a.max_consecutive_failures:
+            raise Abort()
         rec = run_job(j, datasets, var, a)
         append_record(rec)
         with _lock:
@@ -518,8 +525,20 @@ def cmd_exec(a):
             print(fmt_line(rec, i[0], n), flush=True)
             if rec["returncode"] != 0:
                 failures.append(rec["key"])
+                streak[0] += 1
                 print("    stderr: " + rec.get("stderr_tail", "")[-600:].replace("\n", "\n    "), flush=True)
+            else:
+                streak[0] = 0
 
+    try:
+        _exec_all(a, shared, excl, one)
+    except Abort:
+        print("stopping: %d consecutive failures (environment problem?). Fix it, then rerun with --retry-failed."
+              % streak[0])
+    print("done: %d runs, %d failed%s" % (i[0], len(failures), (": " + ", ".join(failures)) if failures else ""))
+
+
+def _exec_all(a, shared, excl, one):
     if shared:
         par = max(1, a.parallel)
         tmax = max(j["threads"] for j in shared)
@@ -538,7 +557,6 @@ def cmd_exec(a):
             print("warning: load average %.1f > %.1f before %s" % (load, a.max_load, j["key"]))
         time.sleep(a.settle)
         one(j)
-    print("done: %d runs, %d failed%s" % (n, len(failures), (": " + ", ".join(failures)) if failures else ""))
 
 
 def cmd_status(a):
@@ -617,6 +635,8 @@ def main():
     e.add_argument("--max-load", type=float, default=2.0, help="wait for 1-min load below this before timed runs")
     e.add_argument("--settle", type=float, default=3.0, help="pause before each timed run (s)")
     e.add_argument("--retry-failed", action="store_true")
+    e.add_argument("--max-consecutive-failures", type=int, default=5, help="stop after this many failures in a row "
+                   "(0 = never)")
     e.add_argument("--dry-run", action="store_true")
     sp.add_parser("status")
     r = sp.add_parser("report")
