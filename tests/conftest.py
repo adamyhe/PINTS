@@ -4,9 +4,11 @@ Layout
 ------
 tests/unit         characterisation tests of the working tree (`pints`)
 tests/diff         differential tests: `pints` (optimised) vs frozen `pints_ref`, bitwise
+tests/probe        bug/deviation probes; deviations kept as legacy defaults are strict xfails
+tests/conformance  algorithm-conformance tests vs. published description / textbook methods
 tests/reference    frozen copy of upstream PINTS 81b2dd9 as `pints_ref` (imports renamed only)
 
-Run with:  pip install pytest hypothesis numba && pytest -m "not slow" tests/unit tests/diff
+Run with:  pip install pytest hypothesis numba && pytest -m "not slow" tests/unit tests/diff tests/probe tests/conformance
 """
 import os
 import sys
