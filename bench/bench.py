@@ -541,16 +541,18 @@ def cmd_exec(a):
 def _exec_all(a, shared, excl, one):
     if shared:
         par = max(1, a.parallel)
-        tmax = max(j["threads"] for j in shared)
-        if par * tmax > ncpu():
-            print("note: --parallel %d x %d threads exceeds %d CPUs" % (par, tmax, ncpu()))
-        if par == 1:
-            for j in shared:
-                one(j)
-        else:
+        # runs too wide to share the machine (e.g. the all-CPU determinism checks) go one at a time afterwards
+        fits = [j for j in shared if par * j["threads"] <= ncpu()] if par > 1 else []
+        alone = [j for j in shared if j not in fits]
+        if par > 1 and alone:
+            print("note: %d runs use more than %d/%d CPUs; they run one at a time after the others"
+                  % (len(alone), ncpu(), par))
+        if fits:
             from concurrent.futures import ThreadPoolExecutor
             with ThreadPoolExecutor(par) as ex:
-                list(ex.map(one, shared))
+                list(ex.map(one, fits))
+        for j in alone:
+            one(j)
     for j in excl:   # timing / scaling: strictly one at a time on an idle machine
         load = wait_idle(a.max_load)
         if load > a.max_load:
