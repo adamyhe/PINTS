@@ -25,9 +25,23 @@ command -v git >/dev/null || { echo "git not found" >&2; exit 1; }
 
 # ---------------------------------------------------------------- python
 say "Python environment ($WORK/venv)"
+# Keep uv's cache next to the venv: a cache in a quota-limited or network home directory can end up holding
+# half-unpacked wheels (e.g. numpy without numpy/_globals.py), which uv then keeps reusing.
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$WORK/uv-cache}" UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-managed
+# Clear conda/virtualenv state so it cannot leak into the build or the import check
+unset PYTHONPATH PYTHONHOME VIRTUAL_ENV CONDA_PREFIX CC CXX CFLAGS LDFLAGS
+deps_ok() {
+  (cd "$WORK" && "$WORK/venv/bin/python" -I -c "import numpy, scipy, pandas, pysam, pyBigWig, pybedtools, numba, psutil, statsmodels; numpy.zeros(1).sum(); print('python deps ok, numpy', numpy.__version__, 'numba', numba.__version__)")
+}
 [ -x "$WORK/venv/bin/python" ] || uv venv -q -p 3.12 "$WORK/venv"
 uv pip install -q -p "$WORK/venv/bin/python" -r "$KIT/requirements.txt"
-"$WORK/venv/bin/python" -c "import numpy, scipy, pandas, pysam, pyBigWig, pybedtools, numba, psutil; print('python deps ok, numpy', numpy.__version__, 'numba', numba.__version__)"
+if ! deps_ok; then
+  say "Import check failed; rebuilding the venv with a fresh download (cache: $UV_CACHE_DIR)"
+  rm -rf "$WORK/venv"
+  uv venv -q -p 3.12 "$WORK/venv"
+  uv pip install -q -p "$WORK/venv/bin/python" --refresh --reinstall --no-cache -r "$KIT/requirements.txt"
+  deps_ok || { echo "python deps still broken; check free space/quota on $WORK (df -h $WORK)" >&2; exit 1; }
+fi
 
 # ---------------------------------------------------------------- command-line tools
 mkdir -p "$WORK/tools/bin" "$WORK/tools/src"
