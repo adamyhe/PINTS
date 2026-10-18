@@ -16,7 +16,7 @@ from collections import defaultdict
 import numpy as np
 
 KINDS = ("bidirectional", "divergent", "unidirectional")
-HASH_VARIANTS = ("gate1", "gate2_off", "trackb")
+HASH_VARIANTS = ("gate1", "gate2_off", "trackb", "pr4")
 TIMED = ("timing", "scaling")
 # fixed categorical slots (reference palette, light mode): identity follows the implementation, never its rank
 COLORS = {"ref": "#2a78d6", "gate1": "#eb6834", "gate2": "#1baf7a"}
@@ -349,7 +349,24 @@ def speedup_figure(trows, figdir):
 
 
 # ============================================================== main
-def main(out, recs, plan, sysinfo):
+def previous_rows(recs, previous, shas):
+    """Timed runs of a variant's current commit vs the commit it replaced (records kept in runs.jsonl)."""
+    cur, old = timed_groups(recs), timed_groups(previous or {})
+    rows = []
+    for k in sorted(set(cur) & set(old)):
+        d, t, v = k
+        if v == "ref":
+            continue
+        wn, wo = _med(cur[k], "wall_s"), _med(old[k], "wall_s")
+        pn, po = _med(cur[k], "peak_pss_gb"), _med(old[k], "peak_pss_gb")
+        rows.append({"dataset": d, "threads": t, "variant": v,
+                     "old_sha": ",".join(sorted({r["impl_sha"][:7] for r in old[k]})), "new_sha": (shas or {}).get(v, "")[:7],
+                     "n_old": len(old[k]), "n_new": len(cur[k]), "wall_old_s": round(wo, 2), "wall_new_s": round(wn, 2),
+                     "wall_change": round(wn / wo - 1, 3), "pss_old_gb": round(po, 2), "pss_new_gb": round(pn, 2)})
+    return rows
+
+
+def main(out, recs, plan, sysinfo, previous=None, shas=None):
     for r in recs.values():   # older records of keep runs also hashed the per-strand _sig_ intermediates
         r["hashes"] = {k: v for k, v in r.get("hashes", {}).items() if "_sig_" not in k}
     os.makedirs(out, exist_ok=True)
@@ -379,17 +396,21 @@ def main(out, recs, plan, sysinfo):
     erows, problems = equivalence(recs)
     _write_csv(os.path.join(out, "equivalence.csv"), erows,
                ["dataset", "config", "ref_runs", "ref_consistent"] + list(HASH_VARIANTS) + ["gate2"])
+    has_pr4 = any(r.get("pr4") for r in erows)
+    ecols = ["dataset", "config", "ref_consistent"] + [v for v in HASH_VARIANTS if v != "pr4" or has_pr4] + ["gate2"]
+    eheads = ["dataset", "config", "ref self-consistent", "gate1", "gate2 (flag off)", "trackB"] + \
+        (["PR 4 (main + dtype fix)"] if has_pr4 else []) + ["gate2 fast"]
     n_cmp = sum(int(c.split("/")[1].split()[0]) for r in erows for v in HASH_VARIANTS
                 for c in [r.get(v) or ""] if "identical" in c)
     md += ["## 1. Equivalence (byte identity of final peak files vs the reference)", "",
            "Every successful run of `gate1`, `gate2_off` (Gate 2 branch with the flag unset) and `trackb` "
-           "(default flags) must reproduce the reference's bidirectional, divergent and unidirectional peak files "
+           "(default flags)%s must reproduce the reference's bidirectional, divergent and unidirectional peak files "
            "byte for byte, at any thread count and hash seed. `gate2` (fast math) is shown for information "
-           "only; it is judged by the drift budget in section 2.", "",
+           "only; it is judged by the drift budget in section 2." % (", and `pr4` (`main` plus the empty-frame dtype "
+           "fix; default config, plus all configs on the dataset that triggers it)" if has_pr4 else ""), "",
            "**%s** (%d variant runs compared)." % ("All identical" if not problems else "%d mismatches or failures"
                                                     % len(problems), n_cmp), "",
-           _md_table(erows, ["dataset", "config", "ref_consistent"] + list(HASH_VARIANTS) + ["gate2"],
-                     ["dataset", "config", "ref self-consistent", "gate1", "gate2 (flag off)", "trackB", "gate2 fast"]), ""]
+           _md_table(erows, ecols, eheads), ""]
     if problems:
         md += ["### Mismatches / failures", "", _md_table(problems, ["key", "differing_files"]), ""]
 
@@ -458,10 +479,27 @@ def main(out, recs, plan, sysinfo):
         sel.sort(key=lambda r: (r["dataset"], r["threads"], -r["dur_median_s"]))
         md += ["## 5. Where the time goes (Gate 1, phase markers)", "",
                "Median duration and peak PSS per phase at 1 and %d threads, from `PINTS_PHASE_TIMING` markers timestamped "
-               "by the runner; the first phase also includes interpreter start-up and imports. Full table: "
+               "by the runner; the first phase also includes interpreter start-up and imports. A marker closes the "
+               "phase named on it, so without a pool (1 thread) one strand's filtering is counted in the next strand's "
+               "`phase1 setup`; with a pool all filtering is in `filtering+pairing+qc`. Full table: "
                "`phases.csv`." % tmax, "",
                _md_table(sel, ["dataset", "threads", "phase", "dur_median_s", "share", "peak_pss_gb"],
                          ["dataset", "threads", "phase", "seconds", "share of wall", "peak PSS GB"]), ""]
+    vrows = previous_rows(recs, previous, shas)
+    _write_csv(os.path.join(out, "previous_version.csv"), vrows,
+               ["dataset", "threads", "variant", "old_sha", "new_sha", "n_old", "n_new", "wall_old_s", "wall_new_s",
+                "wall_change", "pss_old_gb", "pss_new_gb"])
+    if vrows:
+        for r in vrows:
+            r["wall"] = "%s → %s" % (_fmt_s(r["wall_old_s"]), _fmt_s(r["wall_new_s"]))
+            r["chg"] = "%+.1f%%" % (100 * r["wall_change"])
+            r["pss"] = "%.2f → %.2f" % (r["pss_old_gb"], r["pss_new_gb"])
+        md += ["## 6. Change from the previous commit of each variant", "",
+               "Timed runs (default config) of the commit each variant is pinned to now, against the latest "
+               "successful runs of the commit it replaced, from earlier records in `runs.jsonl`. Both are medians; "
+               "the old runs may come from an earlier session on the same machine.", "",
+               _md_table(vrows, ["dataset", "threads", "variant", "old_sha", "new_sha", "wall", "chg", "pss"],
+                         ["dataset", "threads", "variant", "old", "new", "wall (median)", "change", "peak PSS GB"]), ""]
     fails = [r for r in recs.values() if not _ok(r)]
     if fails:
         md += ["## Failed runs", "", _md_table([{"key": r["key"], "rc": r["returncode"],

@@ -68,6 +68,10 @@ TIERS = {
         ref_scaling_threads=[1, 2, 4, 8, 16, 32, 64]),
 }
 EQ_VARIANTS = ["ref", "gate1", "gate2_off", "trackb", "gate2"]   # gate2 (fast math) is judged by drift, not hashes
+# PR 4 (main + the empty-frame dtype fix) runs at reference speed, so it gets a reduced plan: equivalence on every
+# dataset in the default config plus all configs on the dataset that triggers the fix, and timing on that dataset
+PR4_VARIANT, PR4_ALL_CONFIGS, PR4_TIMING = "pr4", ["H3_bam_ct_gm12878_grocap"], ["H3_bam_ct_gm12878_grocap"]
+REF_LIKE = ("ref", PR4_VARIANT)
 TIMING_VARIANTS = ["ref", "gate1", "gate2"]
 SCALING_VARIANTS = ["gate1", "gate2"]
 
@@ -127,7 +131,7 @@ def est_seconds(j):
     ref1, ref16, opt1, opt16 = e
     t = j["threads"]
     cf_ref, cf_opt = CONFIG_FACTOR[j["config"]]
-    if j["variant"] == "ref":
+    if j["variant"] in REF_LIKE:
         if t >= 16:
             s = ref16
         else:  # reference scales poorly; interpolate in log2(threads)
@@ -177,7 +181,18 @@ def build_plan(tier, suites, max_threads):
         for d in T["determinism"]:   # thread count and hash seed must not change any output byte
             for t, seed in ((1, 0), (te, 1234), (max_threads, 99)):
                 add("equivalence", False, dataset=d, variant="gate1", threads=t, hashseed=seed)
+        if PR4_VARIANT in variants()["variants"]:
+            for d in T["eq_datasets"]:
+                for c in (list(CONFIGS) if d in PR4_ALL_CONFIGS else ["default"]):
+                    add("equivalence", False, dataset=d, config=c, variant=PR4_VARIANT, threads=te)
     if "timing" in suites:
+        if PR4_VARIANT in variants()["variants"]:
+            for d in PR4_TIMING:
+                if d not in T["timing_datasets"]:
+                    continue
+                for t in cap(T["timing_threads"]):
+                    for rep in range(1 if t == 1 else T["reps"]):
+                        add("timing", True, dataset=d, variant=PR4_VARIANT, threads=t, rep=rep)
         for d in T["timing_datasets"]:
             for t in cap(T["timing_threads"]):
                 for rep in range(T["reps"]):
@@ -197,8 +212,14 @@ def build_plan(tier, suites, max_threads):
     order = {"equivalence": 0, "timing": 1, "scaling": 2}
     out = sorted(jobs.values(), key=lambda j: (j["exclusive"], min(order[s] for s in j["suites"])))
     # keep the insertion order (alternation) inside each group: sorted() is stable
+    measured = {}   # wall time of the last successful run of the same job, any commit (pr4 borrows ref's)
+    for r in list(load_records(previous=True).values()) + list(load_records().values()):
+        if r["returncode"] == 0:
+            measured[r["key"]] = r["wall_s"]
     for j in out:
-        j["est_s"] = round(est_seconds(j), 1)
+        alt = j["key"].replace("|%s|" % PR4_VARIANT, "|ref|") if j["variant"] == PR4_VARIANT else None
+        m = measured.get(j["key"], measured.get(alt))
+        j["est_s"] = round(m if m is not None else est_seconds(j), 1)
     return out
 
 
@@ -224,7 +245,7 @@ def cmd_plan(a):
     tot = sum(j["est_s"] for j in jobs if j["key"] not in done) / 3600
     eq = sum(j["est_s"] for j in jobs if not j["exclusive"] and j["key"] not in done) / 3600
     print("total remaining: ~%.1f h sequential (equivalence part %.1f h; it can run with --parallel N)" % (tot, eq))
-    print("Estimates are scaled from a 16-core machine and are rough (+-2x).")
+    print("Estimates use the last measured run of each job where there is one, otherwise figures scaled from a 16-core machine (+-2x).")
 
 
 # ======================================================================================== sampling
@@ -450,13 +471,29 @@ def append_record(rec):
         fh.write(json.dumps(rec) + "\n")
 
 
-def load_records():
+def current_shas():
+    var = variants()
+    return {v: var["checkouts"][spec["checkout"]]["sha"] for v, spec in var["variants"].items()}
+
+
+def load_records(previous=False):
+    """Latest record per job key, counting only runs of the commit each variant is pinned to now in variants.json.
+
+    Runs of other commits stay in runs.jsonl; with previous=True this returns the latest successful one per key
+    instead (used by the report to compare a variant's new commit with the one it replaced)."""
+    cur = current_shas()
     recs = {}
     if os.path.exists(RUNS_JSONL):
         with open(RUNS_JSONL) as fh:
             for line in fh:
                 if line.strip():
                     r = json.loads(line)
+                    if r["variant"] not in cur:
+                        continue
+                    if previous != (r.get("impl_sha") != cur[r["variant"]]):
+                        continue
+                    if previous and r["returncode"] != 0:
+                        continue
                     recs[r["key"]] = r   # latest record per key wins
     return recs
 
@@ -656,7 +693,8 @@ def main():
     elif a.cmd == "report":
         sys.path.insert(0, HERE)
         import report
-        report.main(a.out, load_records(), load_json(PLAN), load_json(os.path.join(RESULTS, "sysinfo.json"), []))
+        report.main(a.out, load_records(), load_json(PLAN), load_json(os.path.join(RESULTS, "sysinfo.json"), []),
+                    previous=load_records(previous=True), shas=current_shas())
 
 
 if __name__ == "__main__":

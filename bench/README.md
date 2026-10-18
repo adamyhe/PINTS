@@ -40,6 +40,23 @@ Set `PINTS_BENCH_WORK=/fast/disk/pints_bench` before `setup.sh` (and keep it set
 
 **Bring back** `bench_work/bench_results_<host>_<date>.tar.gz`. It holds all run records, memory traces, phase logs, sysinfo and the report, but no data or peak files. The gate1/gate2 candidate tables needed for the drift check are summarised in the report, and the run directories stay under `bench_work/runs/` if you need to dig further.
 
+## Re-running after new commits
+
+Each record stores the commit it ran (`impl_sha`). A run counts as done only if that commit is the one its variant is pinned to now in `bench/variants.json`. After the branches gain commits, update the kit and rerun in the same work directory:
+
+```bash
+git pull                                      # new SHAs in bench/variants.json
+bash bench/setup.sh                           # moves the implementation worktrees to the new commits
+bench/run plan --tier standard --max-threads 64
+bench/run exec --suites equivalence --parallel 2
+bench/run exec                                # timing + scaling
+bench/run report
+```
+
+Variants whose commit did not change, such as `ref`, keep their runs, so only the changed implementations rerun. `plan` estimates each job from its last measured run. Older records stay in `runs.jsonl`, and the report's section 6 compares each variant's new commit with the one it replaced on the same timed jobs.
+
+`pr4` (`main` plus the empty-frame dtype fix) runs at reference speed, so it gets a reduced plan: equivalence on every dataset in the default config plus all three configs on H3 (the dataset where the fix triggers), and timing on H3.
+
 ## Tiers
 
 | tier | equivalence | timing | scaling | rough duration |
