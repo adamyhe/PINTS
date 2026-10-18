@@ -1005,6 +1005,20 @@ def _bins_to_df(bins, strand_sign):
     return result_df
 
 
+def _concat_result_frames(sub_dfs):
+    """
+    Concatenate per-chromosome result frames, leaving out empty ones.
+
+    A chromosome without any testable peak yields an empty frame whose columns are all object dtype.
+    Concatenating it with the other frames upcasts every integer column (start, end, reads, ...) to
+    object, which sends `stratified_filtering` down the row-wise Poisson path and makes
+    `independent_filtering` compute its quantiles on object arrays (tens of times slower). Empty frames
+    contribute no rows, so leaving them out changes only the dtypes, not the values or their order.
+    """
+    non_empty = [sdf for sdf in sub_dfs if sdf.shape[0] > 0]
+    return pd.concat(non_empty if non_empty else sub_dfs)
+
+
 def _segment_chunks(lines, target):
     """
     Split subpeak lines (file order) into chunks of whole independent segments (gap >= _SEGMENT_GAP)
@@ -1418,7 +1432,7 @@ def peaks_single_strand(per_base_cov, output_file, shared_peak_definitions, stra
     if defer_filtering and len(sub_dfs) == 0:
         return None  # let the caller re-run inline so the failure surfaces at the original point
     log_assert(len(sub_dfs) > 0, "No signal found across all chromosomes!", logger)
-    tmp_df = pd.concat(sub_dfs)
+    tmp_df = _concat_result_frames(sub_dfs)
 
     if kwargs.get("output_diagnostics", False):
         tmp_df.to_csv(output_file.replace(".bed", "_debug.csv"), index=False)
