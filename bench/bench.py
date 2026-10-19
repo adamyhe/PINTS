@@ -682,6 +682,10 @@ def main():
     r.add_argument("--out", default=os.path.join(WORK, "report"))
     sp.add_parser("sysinfo")
     a = ap.parse_args()
+    venv_py = os.environ.get("PINTS_BENCH_PYTHON")
+    if a.cmd == "exec" and not (venv_py and os.path.realpath(venv_py) == os.path.realpath(sys.executable)):
+        # A run started from another interpreter leaves PINTS children behind when the sampler fails to import.
+        sys.exit("start runs with bench/run exec, which uses the kit's venv (%s is not it)" % sys.executable)
     if a.cmd == "plan":
         cmd_plan(a)
     elif a.cmd == "exec":
