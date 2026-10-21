@@ -10,5 +10,6 @@ cmd="${1:-}"; shift || true
 case "$cmd" in
   fetch) exec "$PINTS_BENCH_PYTHON" "$KIT/fetch_data.py" "$@" ;;
   plan|exec|status|report|sysinfo) exec "$PINTS_BENCH_PYTHON" "$KIT/bench.py" "$cmd" "$@" ;;
-  *) echo "usage: bench/run {fetch|plan|exec|status|report|sysinfo} [args]" >&2; exit 2 ;;
+  profile) exec "$PINTS_BENCH_PYTHON" "$KIT/profiling.py" "$@" ;;
+  *) echo "usage: bench/run {fetch|plan|exec|status|report|sysinfo|profile} [args]" >&2; exit 2 ;;
 esac

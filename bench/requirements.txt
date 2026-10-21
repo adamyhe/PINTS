@@ -12,3 +12,4 @@ biopython
 matplotlib
 requests
 psutil
+py-spy==0.4.0

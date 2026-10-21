@@ -57,6 +57,31 @@ Variants whose commit did not change, such as `ref`, keep their runs, so only th
 
 `pr4` (`main` plus the empty-frame dtype fix) runs at reference speed, so it gets a reduced plan: equivalence on every dataset in the default config plus all three configs on H3 (the dataset where the fix triggers), and timing on H3.
 
+## Profiling
+
+`bench/run profile` profiles one implementation (default `gate1`, default config) on H1 and H3. It runs in the same work directory, needs `bench/run fetch` to have been run, and takes about 1.5 h:
+
+```bash
+git pull && bash bench/setup.sh               # setup installs py-spy
+bench/run profile --dry-run                   # lists the 9 runs
+bench/run profile                             # -> bench_work/profile_results_<host>_<date>.tar.gz
+```
+
+Each mode is its own run, so the profilers don't distort each other:
+
+| Mode | Runs | What it records |
+|---|---|---|
+| `trace` | H1 at 1, 16, 64 threads; H3 at 1, 64 | how long the main functions take in the parent and in every pool worker (including the bedtools and tabix calls), memory and I/O of each process every 0.25 s, and every file that appears in the run directory, with size and lifetime |
+| `pyspy` | H1, H3 at 64 threads | sampled call stacks of all processes (py-spy) |
+| `cprofile` | H1, H3 at 1 thread | exact call counts and times of the main process, which does all the work at 1 thread |
+
+- **Output check:** each run's peak files are compared with the benchmark runs of the same commit; the progress line says if they match.
+- **Clean-up:** the run directories are deleted afterwards; only the profiles are kept (tens of MB).
+- **Options:**
+  - `--modes`, `--datasets` and `--variant` restrict or change the runs;
+  - finished runs are skipped, and `--force` reruns them.
+- **If py-spy fails:** most likely the node doesn't allow tracing processes (`/proc/sys/kernel/yama/ptrace_scope` above 1). The other two modes still work.
+
 ## Tiers
 
 | tier | equivalence | timing | scaling | rough duration |
