@@ -16,7 +16,7 @@ from collections import defaultdict
 import numpy as np
 
 KINDS = ("bidirectional", "divergent", "unidirectional")
-HASH_VARIANTS = ("gate1", "gate2_off", "trackb", "pr4")
+HASH_VARIANTS = ("gate1", "gate2_off", "trackb", "pr4", "io")
 TIMED = ("timing", "scaling")
 # fixed categorical slots (reference palette, light mode): identity follows the implementation, never its rank
 COLORS = {"ref": "#2a78d6", "gate1": "#eb6834", "gate2": "#1baf7a"}
@@ -227,6 +227,40 @@ def phase_rows(g):
     return rows
 
 
+def paired_rows(recs):
+    """io vs gate1 from the `paired` suite (same session, alternating)."""
+    g = defaultdict(list)
+    for r in recs.values():
+        if _ok(r) and "paired" in r["suites"] and r["config"] == "default":
+            g[(r["dataset"], r["threads"], r["variant"])].append(r)
+    rows, phases = [], []
+    for (d, t) in sorted({(d, t) for (d, t, v) in g}):
+        a, b = g.get((d, t, "gate1")), g.get((d, t, "io"))
+        if not a or not b:
+            continue
+        wa, wb, pa, pb = _med(a, "wall_s"), _med(b, "wall_s"), _med(a, "peak_pss_gb"), _med(b, "peak_pss_gb")
+        rows.append({"dataset": d, "threads": t, "n": min(len(a), len(b)), "wall_gate1_s": round(wa, 2),
+                     "wall_io_s": round(wb, 2), "wall_change": round(wb / wa - 1, 4), "pss_gate1_gb": round(pa, 2),
+                     "pss_io_gb": round(pb, 2), "pss_change": round(pb / pa - 1, 4) if pa else 0.0})
+    tmax = max((t for (d, t, v) in g), default=None)
+    for d in sorted({d for (d, t, v) in g}):
+        per = {}
+        for v in ("gate1", "io"):
+            acc = defaultdict(list)
+            for r in g.get((d, tmax, v), []):
+                dur = defaultdict(float)
+                for p in r.get("phases", []):
+                    dur[p["phase"]] += p["dur_s"]
+                for ph, x in dur.items():
+                    acc[ph].append(x)
+            per[v] = {ph: statistics.median(xs) for ph, xs in acc.items()}
+        for ph in per["gate1"]:
+            if ph in per["io"] and max(per["gate1"][ph], per["io"][ph]) >= 0.5:
+                phases.append({"dataset": d, "threads": tmax, "phase": ph, "gate1_s": round(per["gate1"][ph], 2),
+                               "io_s": round(per["io"][ph], 2)})
+    return rows, phases
+
+
 # ============================================================== figures
 def _style(ax, title, xlabel, ylabel):
     ax.set_title(title, loc="left", fontsize=10, color=INK)
@@ -397,17 +431,22 @@ def main(out, recs, plan, sysinfo, previous=None, shas=None):
     _write_csv(os.path.join(out, "equivalence.csv"), erows,
                ["dataset", "config", "ref_runs", "ref_consistent"] + list(HASH_VARIANTS) + ["gate2"])
     has_pr4 = any(r.get("pr4") for r in erows)
-    ecols = ["dataset", "config", "ref_consistent"] + [v for v in HASH_VARIANTS if v != "pr4" or has_pr4] + ["gate2"]
+    has_io = any(r.get("io") for r in erows)
+    ecols = ["dataset", "config", "ref_consistent"] + [v for v in HASH_VARIANTS
+                                                       if (v != "pr4" or has_pr4) and (v != "io" or has_io)] + ["gate2"]
     eheads = ["dataset", "config", "ref self-consistent", "gate1", "gate2 (flag off)", "trackB"] + \
-        (["PR 4 (main + dtype fix)"] if has_pr4 else []) + ["gate2 fast"]
+        (["PR 4 (main + dtype fix)"] if has_pr4 else []) + (["io (gate1 + I/O, memory)"] if has_io else []) + \
+        ["gate2 fast"]
     n_cmp = sum(int(c.split("/")[1].split()[0]) for r in erows for v in HASH_VARIANTS
                 for c in [r.get(v) or ""] if "identical" in c)
     md += ["## 1. Equivalence (byte identity of final peak files vs the reference)", "",
            "Every successful run of `gate1`, `gate2_off` (Gate 2 branch with the flag unset) and `trackb` "
            "(default flags)%s must reproduce the reference's bidirectional, divergent and unidirectional peak files "
            "byte for byte, at any thread count and hash seed. `gate2` (fast math) is shown for information "
-           "only; it is judged by the drift budget in section 2." % (", and `pr4` (`main` plus the empty-frame dtype "
-           "fix; default config, plus all configs on the dataset that triggers it)" if has_pr4 else ""), "",
+           "only; it is judged by the drift budget in section 2." % (
+               (", `pr4` (`main` plus the empty-frame dtype fix; default config, plus all configs on the dataset "
+                "that triggers it)" if has_pr4 else "") +
+               (", `io` (Gate 1 plus the I/O and memory commits)" if has_io else "")), "",
            "**%s** (%d variant runs compared)." % ("All identical" if not problems else "%d mismatches or failures"
                                                     % len(problems), n_cmp), "",
            _md_table(erows, ecols, eheads), ""]
@@ -500,6 +539,25 @@ def main(out, recs, plan, sysinfo, previous=None, shas=None):
                "the old runs may come from an earlier session on the same machine.", "",
                _md_table(vrows, ["dataset", "threads", "variant", "old_sha", "new_sha", "wall", "chg", "pss"],
                          ["dataset", "threads", "variant", "old", "new", "wall (median)", "change", "peak PSS GB"]), ""]
+    prows7, phrows7 = paired_rows(recs)
+    _write_csv(os.path.join(out, "paired_io.csv"), prows7, ["dataset", "threads", "n", "wall_gate1_s", "wall_io_s",
+                                                           "wall_change", "pss_gate1_gb", "pss_io_gb", "pss_change"])
+    if prows7:
+        for r in prows7:
+            r["wall"] = "%s → %s" % (_fmt_s(r["wall_gate1_s"]), _fmt_s(r["wall_io_s"]))
+            r["chg"] = "%+.1f%%" % (100 * r["wall_change"])
+            r["pss"] = "%.2f → %.2f" % (r["pss_gate1_gb"], r["pss_io_gb"])
+            r["pchg"] = "%+.0f%%" % (100 * r["pss_change"])
+        md += ["## 7. I/O and memory commits vs Gate 1 (paired runs)", "",
+               "`io` (perf/io-memory) and `gate1` timed back to back in the same session, alternating order, "
+               "default config; medians of %s. Memory is the peak summed PSS." % "the repetitions", "",
+               _md_table(prows7, ["dataset", "threads", "n", "wall", "chg", "pss", "pchg"],
+                         ["dataset", "threads", "pairs", "wall gate1 → io", "change", "peak PSS GB gate1 → io",
+                          "change"]), ""]
+        if phrows7:
+            md += ["Phases at the highest thread count (median seconds, gate1 → io):", "",
+                   _md_table(phrows7, ["dataset", "threads", "phase", "gate1_s", "io_s"],
+                             ["dataset", "threads", "phase", "gate1 s", "io s"]), ""]
     fails = [r for r in recs.values() if not _ok(r)]
     if fails:
         md += ["## Failed runs", "", _md_table([{"key": r["key"], "rc": r["returncode"],

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """PINTS benchmark runner: equivalence, runtime, peak memory and thread scaling.
 
-    bench/run plan   --tier {smoke,standard,full} [--suites equivalence,timing,scaling] [--max-threads N]
+    bench/run plan   --tier {smoke,standard,full} [--suites equivalence,timing,scaling,paired] [--max-threads N]
     bench/run exec   [--suites ...] [--parallel N] [--systemd-scope] [--dry-run] [--retry-failed]
     bench/run status
     bench/run report [--out DIR]
@@ -72,6 +72,9 @@ EQ_VARIANTS = ["ref", "gate1", "gate2_off", "trackb", "gate2"]   # gate2 (fast m
 # dataset in the default config plus all configs on the dataset that triggers the fix, and timing on that dataset
 PR4_VARIANT, PR4_ALL_CONFIGS, PR4_TIMING = "pr4", ["H3_bam_ct_gm12878_grocap"], ["H3_bam_ct_gm12878_grocap"]
 REF_LIKE = ("ref", PR4_VARIANT)
+# perf/io-memory (Gate 1 + I/O and memory commits) must match the reference like gate1. Its `paired` suite times it
+# against gate1 in the same session (alternating, fresh repetition numbers), since sessions differ by about 15%
+IO_VARIANT, PAIRED_THREADS, PAIRED_REP0 = "io", [1, 16, 64], 100
 TIMING_VARIANTS = ["ref", "gate1", "gate2"]
 SCALING_VARIANTS = ["gate1", "gate2"]
 
@@ -185,6 +188,13 @@ def build_plan(tier, suites, max_threads):
             for d in T["eq_datasets"]:
                 for c in (list(CONFIGS) if d in PR4_ALL_CONFIGS else ["default"]):
                     add("equivalence", False, dataset=d, config=c, variant=PR4_VARIANT, threads=te)
+        if IO_VARIANT in variants()["variants"]:
+            for d in T["eq_datasets"]:
+                for c in T["eq_configs"]:
+                    add("equivalence", False, dataset=d, config=c, variant=IO_VARIANT, threads=te)
+            for d in T["determinism"]:
+                for t, seed in ((1, 0), (te, 1234), (max_threads, 99)):
+                    add("equivalence", False, dataset=d, variant=IO_VARIANT, threads=t, hashseed=seed)
     if "timing" in suites:
         if PR4_VARIANT in variants()["variants"]:
             for d in PR4_TIMING:
@@ -209,7 +219,13 @@ def build_plan(tier, suites, max_threads):
                         add("scaling", True, dataset=d, variant=v, threads=t, rep=rep)
             for t in cap(T["ref_scaling_threads"]):
                 add("scaling", True, dataset=d, variant="ref", threads=t)
-    order = {"equivalence": 0, "timing": 1, "scaling": 2}
+    if "paired" in suites and IO_VARIANT in variants()["variants"]:
+        for d in T["timing_datasets"]:
+            for t in cap(PAIRED_THREADS):
+                for rep in range(1 if t == 1 else T["reps"]):
+                    for v in (("gate1", IO_VARIANT) if rep % 2 == 0 else (IO_VARIANT, "gate1")):
+                        add("paired", True, dataset=d, variant=v, threads=t, rep=PAIRED_REP0 + rep)
+    order = {"equivalence": 0, "timing": 1, "scaling": 2, "paired": 3}
     out = sorted(jobs.values(), key=lambda j: (j["exclusive"], min(order[s] for s in j["suites"])))
     # keep the insertion order (alternation) inside each group: sorted() is stable
     measured = {}   # wall time of the last successful run of the same job, any commit (pr4 borrows ref's)
@@ -218,6 +234,8 @@ def build_plan(tier, suites, max_threads):
             measured[r["key"]] = r["wall_s"]
     for j in out:
         alt = j["key"].replace("|%s|" % PR4_VARIANT, "|ref|") if j["variant"] == PR4_VARIANT else None
+        if j["variant"] == IO_VARIANT or "paired" in j["suites"]:   # io and paired runs borrow gate1's times
+            alt = job_key(dict(j, variant="gate1", rep=0 if "paired" in j["suites"] else j["rep"]))
         m = measured.get(j["key"], measured.get(alt))
         j["est_s"] = round(m if m is not None else est_seconds(j), 1)
     return out

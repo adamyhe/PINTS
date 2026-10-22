@@ -9,6 +9,8 @@ This kit checks equivalence, runtime, peak memory and thread scaling. It compare
 | `gate2` | `perf/gate2-fast-math` with `PINTS_FAST_MATH=1` | compiled ZIP fit, judged against a drift budget |
 | `gate2_off` | `perf/gate2-fast-math`, flag unset | must be byte-identical |
 | `trackb` | `fix/trackB-flags`, no new flags | must be byte-identical |
+| `pr4` | `fix/empty-frame-dtype` (`main` + one fix) | must be byte-identical |
+| `io` | `perf/io-memory` (gate1 + I/O and memory commits) | must be byte-identical |
 
 Each variant is a git worktree pinned to the commit in `variants.json`. The kit runs that worktree's unmodified `scripts/pints_caller`.
 
@@ -56,6 +58,24 @@ bench/run report
 Variants whose commit did not change, such as `ref`, keep their runs, so only the changed implementations rerun. `plan` estimates each job from its last measured run. Older records stay in `runs.jsonl`, and the report's section 6 compares each variant's new commit with the one it replaced on the same timed jobs.
 
 `pr4` (`main` plus the empty-frame dtype fix) runs at reference speed, so it gets a reduced plan: equivalence on every dataset in the default config plus all three configs on H3 (the dataset where the fix triggers), and timing on H3.
+
+## I/O and memory commits (`io`)
+
+`perf/io-memory` adds three commits to gate1, from the profiling results:
+- block-wise replicate merge, for H1's memory peak;
+- early, background deletion of coverage dumps;
+- the stratified-filtering table written in parallel chunks, without `bedtools sort`.
+
+It must match the reference byte for byte like gate1. The `paired` suite times it against gate1 in the same session: alternating, at 1, 16 and 64 threads on the timing datasets, with fresh gate1 runs, so session-to-session noise does not enter the comparison. In the same work directory:
+
+```bash
+git pull && bash bench/setup.sh                               # adds the io checkout
+bench/run plan --tier standard --suites equivalence,paired --max-threads 64
+bench/run exec --suites equivalence --parallel 2              # only the io runs are new
+bench/run exec --suites paired                                # ~2.5 h
+bench/run report                                              # section 7: io vs gate1
+bench/run profile --variant io                                # optional, profiles io like gate1
+```
 
 ## Profiling
 
