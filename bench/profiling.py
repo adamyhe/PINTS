@@ -120,7 +120,7 @@ def plan(a):
 
 def done(job, sha):
     m = bench.load_json(os.path.join(PROFILE, job["name"], "meta.json"))
-    # py-spy exits 0 even when PINTS fails under it, so a run whose output differs is not done either.
+    # py-spy can panic mid-run and still exit 0, so a run whose output differs is not done either.
     return bool(m) and m.get("returncode") == 0 and m.get("impl_sha") == sha and m.get("matches_benchmark") is not False
 
 
