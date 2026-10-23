@@ -6,7 +6,7 @@
   "gate2":  {"ref": "perf/gate2-fast-math",     "sha": "bc6fdaf2fbe4375a3590a29506001c23f5ac5a6d"},
   "trackb": {"ref": "fix/trackB-flags",         "sha": "8d582001e56b4a8be1a11dce9e7eafd48dd0c711"},
   "pr4":    {"ref": "fix/empty-frame-dtype",    "sha": "de0febe7eab4e198b1bdb5cdb6382f22ac4e2db8"},
-  "io":     {"ref": "perf/io-memory",           "sha": "7801b61f1373e34a3ddd13beb919daccb02d757f"}
+  "io":     {"ref": "perf/io-memory",           "sha": "70c8c1d7a51ac2fdd6bc99ee3665e081243e504b"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -15,6 +15,6 @@
   "gate2_off": {"checkout": "gate2",  "env": {}, "label": "Gate 2 branch, flag off"},
   "trackb":    {"checkout": "trackb", "env": {}, "label": "Track B, default flags"},
   "pr4":       {"checkout": "pr4",    "env": {}, "label": "main + empty-frame dtype fix (PR 4)"},
-  "io":        {"checkout": "io",     "env": {}, "label": "Gate 1 + I/O and memory commits"}
+  "io":        {"checkout": "io",     "env": {}, "label": "Gate 1 + I/O and memory commits", "paired_round": 2}
  }
 }

@@ -228,11 +228,15 @@ def phase_rows(g):
 
 
 def paired_rows(recs):
-    """io vs gate1 from the `paired` suite (same session, alternating)."""
+    """io vs gate1 from the `paired` suite (same session, alternating), latest round (repetition // 100) only."""
+    paired = [r for r in recs.values() if _ok(r) and "paired" in r["suites"] and r["config"] == "default"]
+    io_rounds = [r["rep"] // 100 for r in paired if r["variant"] == "io"]
+    latest = max(io_rounds, default=None)
     g = defaultdict(list)
-    for r in recs.values():
-        if _ok(r) and "paired" in r["suites"] and r["config"] == "default":
+    for r in paired:
+        if r["rep"] // 100 == latest:
             g[(r["dataset"], r["threads"], r["variant"])].append(r)
+    io_shas = sorted({r["impl_sha"][:7] for (d, t, v), rs in g.items() if v == "io" for r in rs})
     rows, phases = [], []
     for (d, t) in sorted({(d, t) for (d, t, v) in g}):
         a, b = g.get((d, t, "gate1")), g.get((d, t, "io"))
@@ -258,7 +262,7 @@ def paired_rows(recs):
             if ph in per["io"] and max(per["gate1"][ph], per["io"][ph]) >= 0.5:
                 phases.append({"dataset": d, "threads": tmax, "phase": ph, "gate1_s": round(per["gate1"][ph], 2),
                                "io_s": round(per["io"][ph], 2)})
-    return rows, phases
+    return rows, phases, io_shas
 
 
 # ============================================================== figures
@@ -539,7 +543,7 @@ def main(out, recs, plan, sysinfo, previous=None, shas=None):
                "the old runs may come from an earlier session on the same machine.", "",
                _md_table(vrows, ["dataset", "threads", "variant", "old_sha", "new_sha", "wall", "chg", "pss"],
                          ["dataset", "threads", "variant", "old", "new", "wall (median)", "change", "peak PSS GB"]), ""]
-    prows7, phrows7 = paired_rows(recs)
+    prows7, phrows7, io_shas7 = paired_rows(recs)
     _write_csv(os.path.join(out, "paired_io.csv"), prows7, ["dataset", "threads", "n", "wall_gate1_s", "wall_io_s",
                                                            "wall_change", "pss_gate1_gb", "pss_io_gb", "pss_change"])
     if prows7:
@@ -549,8 +553,9 @@ def main(out, recs, plan, sysinfo, previous=None, shas=None):
             r["pss"] = "%.2f → %.2f" % (r["pss_gate1_gb"], r["pss_io_gb"])
             r["pchg"] = "%+.0f%%" % (100 * r["pss_change"])
         md += ["## 7. I/O and memory commits vs Gate 1 (paired runs)", "",
-               "`io` (perf/io-memory) and `gate1` timed back to back in the same session, alternating order, "
-               "default config; medians of %s. Memory is the peak summed PSS." % "the repetitions", "",
+               "`io` (perf/io-memory at `%s`) and `gate1` timed back to back in the same session, alternating "
+               "order, default config; medians of the repetitions. Memory is the peak summed PSS."
+               % ", ".join(io_shas7), "",
                _md_table(prows7, ["dataset", "threads", "n", "wall", "chg", "pss", "pchg"],
                          ["dataset", "threads", "pairs", "wall gate1 → io", "change", "peak PSS GB gate1 → io",
                           "change"]), ""]

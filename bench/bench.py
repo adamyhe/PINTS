@@ -73,8 +73,10 @@ EQ_VARIANTS = ["ref", "gate1", "gate2_off", "trackb", "gate2"]   # gate2 (fast m
 PR4_VARIANT, PR4_ALL_CONFIGS, PR4_TIMING = "pr4", ["H3_bam_ct_gm12878_grocap"], ["H3_bam_ct_gm12878_grocap"]
 REF_LIKE = ("ref", PR4_VARIANT)
 # perf/io-memory (Gate 1 + I/O and memory commits) must match the reference like gate1. Its `paired` suite times it
-# against gate1 in the same session (alternating, fresh repetition numbers), since sessions differ by about 15%
-IO_VARIANT, PAIRED_THREADS, PAIRED_REP0 = "io", [1, 16, 64], 100
+# against gate1 in the same session (alternating, fresh repetition numbers), since sessions differ by about 15%.
+# Round k (`paired_round` of the io variant, bumped with each new io commit) uses repetitions 100*k + i, so a new
+# commit is timed against fresh gate1 runs too.
+IO_VARIANT, PAIRED_THREADS, PAIRED_REP_STEP = "io", [1, 16, 64], 100
 TIMING_VARIANTS = ["ref", "gate1", "gate2"]
 SCALING_VARIANTS = ["gate1", "gate2"]
 
@@ -220,11 +222,12 @@ def build_plan(tier, suites, max_threads):
             for t in cap(T["ref_scaling_threads"]):
                 add("scaling", True, dataset=d, variant="ref", threads=t)
     if "paired" in suites and IO_VARIANT in variants()["variants"]:
+        rep0 = PAIRED_REP_STEP * int(variants()["variants"][IO_VARIANT].get("paired_round", 1))
         for d in T["timing_datasets"]:
             for t in cap(PAIRED_THREADS):
                 for rep in range(1 if t == 1 else T["reps"]):
                     for v in (("gate1", IO_VARIANT) if rep % 2 == 0 else (IO_VARIANT, "gate1")):
-                        add("paired", True, dataset=d, variant=v, threads=t, rep=PAIRED_REP0 + rep)
+                        add("paired", True, dataset=d, variant=v, threads=t, rep=rep0 + rep)
     order = {"equivalence": 0, "timing": 1, "scaling": 2, "paired": 3}
     out = sorted(jobs.values(), key=lambda j: (j["exclusive"], min(order[s] for s in j["suites"])))
     # keep the insertion order (alternation) inside each group: sorted() is stable

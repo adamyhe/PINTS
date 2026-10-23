@@ -61,12 +61,12 @@ Variants whose commit did not change, such as `ref`, keep their runs, so only th
 
 ## I/O and memory commits (`io`)
 
-`perf/io-memory` adds three commits to gate1, from the profiling results:
-- block-wise replicate merge, for H1's memory peak;
-- early, background deletion of coverage dumps;
+`perf/io-memory` adds these commits to gate1, from the profiling results:
+- block-wise replicate merge, for H1's memory peak, in one pass when the inputs' dtype holds the result;
+- background deletion of coverage dumps once they are no longer read, started while the workers only compute;
 - the stratified-filtering table written in parallel chunks, without `bedtools sort`.
 
-It must match the reference byte for byte like gate1. The `paired` suite times it against gate1 in the same session: alternating, at 1, 16 and 64 threads on the timing datasets, with fresh gate1 runs, so session-to-session noise does not enter the comparison. In the same work directory:
+It must match the reference byte for byte like gate1. The `paired` suite times it against gate1 in the same session: alternating, at 1, 16 and 64 threads on the timing datasets, with fresh gate1 runs, so session-to-session noise does not enter the comparison. Each new io commit gets a new round (`paired_round` in `variants.json`; round k uses repetitions 100k, 100k+1, …), so it is timed against new gate1 runs too, and section 7 shows the latest round only. In the same work directory:
 
 ```bash
 git pull && bash bench/setup.sh                               # adds the io checkout
