@@ -26,6 +26,8 @@ SPANS = [
     ("pints.io_engine", "get_read_signal", "bam: get_read_signal"),
     ("pints.io_engine", "parse_bam_by_contig", "bam: parse_bam_by_contig"),
     ("pints.io_engine", "_bam_contig_worker", "bam: contig worker"),
+    ("pints.io_engine", "_bam_region_worker", "bam: region worker"),
+    ("pints.io_engine", "_bam_assemble_worker", "bam: assemble worker"),
     ("pints.io_engine", "get_coverage", "bam: get_coverage"),
     ("pints.io_engine", "merge_replicates_bw", "reps: merge_replicates_bw"),
     ("pints.io_engine", "_merge_rep_chrom_worker", "reps: chrom worker"),

@@ -63,6 +63,7 @@ Variants whose commit did not change, such as `ref`, keep their runs, so only th
 
 `perf/io-memory` adds these commits to gate1, from the profiling results:
 - block-wise replicate merge, for H1's memory peak, in one pass when the inputs' dtype holds the result;
+- large contigs split into regions when BAMs are parsed in parallel;
 - background deletion of coverage dumps once they are no longer read, started while the workers only compute;
 - the stratified-filtering table written in parallel chunks, without `bedtools sort`.
 
