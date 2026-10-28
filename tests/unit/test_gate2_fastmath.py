@@ -1,4 +1,5 @@
-"""Gate 2 (PINTS_FAST_MATH=1): compiled ZIP EM agrees with the exact (Gate 1) fit within the drift budget."""
+"""Gate 2 (PINTS_FAST_MATH=1): compiled ZIP EM agrees with the exact (Gate 1) fit within the drift budget,
+and LER decisions made from it are certified to equal the exact ones."""
 import numpy as np
 import pytest
 
@@ -53,3 +54,90 @@ def test_fast_fit_falls_back_to_exact(monkeypatch, model, window):
     monkeypatch.setattr(se, "_zip_fit_window_nb", lambda *a: called.append(a))
     assert model.fit_fast_math(window) == model.fit(window)
     assert not called
+
+
+# ------------------------------------------------------------------ certified LER: decisions equal Gate 1's
+def _ler_case(rng):
+    """Sparse coverage with short sub-peaks of small integer counts, so tied fits (the hard case) are common."""
+    L = int(rng.integers(3000, 30000))
+    cov = np.where(rng.random(L) < rng.uniform(0.002, 0.1), rng.poisson(rng.uniform(0.3, 4), L) + 1, 0)
+    lines, pos = [], 0
+    while True:
+        pos += int(rng.integers(5, 400))
+        ln = int(rng.integers(1, 30))
+        if pos + ln >= L:
+            break
+        cov[pos:pos + ln] += rng.integers(0, 3, ln)
+        lines.append("chrT\t%d\t%d\tp\t%s\t+" % (pos, pos + ln, round(float(cov[pos:pos + ln].mean()), 3)))
+        pos += ln
+    return cov.astype([np.int8, np.int16, np.int32][int(rng.integers(0, 3))] if cov.max() < 127 else np.int32), lines
+
+
+@pytest.mark.parametrize("cls", ["bgIQR", "pkIQR"])
+@pytest.mark.parametrize("seed", range(6))
+def test_certified_ler_equals_exact(monkeypatch, cls, seed):
+    from pints.calling_engine import SubpeakIndex
+    rng = np.random.default_rng(seed)
+    cov, lines = _ler_case(rng)
+    index, z, iqr = SubpeakIndex("chrT", lines), se.ZIP(), getattr(se, cls)
+    used = {"many": 0, "single": 0}
+    for name, key in (("_certified_ler_mus", "many"), ("_certified_ler_single", "single")):
+        def wrap(*a, _f=getattr(se, name), _k=key):
+            r = _f(*a)
+            used[_k] += r is not None
+            return r
+        monkeypatch.setattr(se, name, wrap)
+    for _ in range(40):
+        cs = int(rng.integers(0, len(cov) - 50))
+        ce = cs + int(rng.integers(5, 50))
+        for f in (5000, 2500, 500):
+            args = dict(stat_tester=z, bed_handler=index, chromosome="chrT", query_start_left=max(cs - f, 0),
+                        query_end_left=max(cs - 1, 0), query_start_right=min(ce + 1, len(cov)),
+                        query_end_right=min(ce + f, len(cov)), small_window_threshold=5,
+                        peak_in_bg_threshold=float(rng.choice([0.5, 1., 2.])), coverage_info=cov, fdr_target=0.1,
+                        disable_ler=False, enable_eler=bool(rng.random() < .5),
+                        peak_threshold=float(rng.choice([2., 5., 20.])))
+            out = {}
+            for fast in (False, True):
+                monkeypatch.setattr(se, "FAST_MATH", fast)
+                cache = {}
+                env, n = iqr.remove_peaks_in_local_env(cache=cache, **args)
+                out[fast] = (env.dtype, env.tobytes(), n, sorted(cache.items()))
+            assert out[True] == out[False]
+    assert used["single"] > 0 and (used["many"] > 0 or cls == "pkIQR")
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_ler_kernel_matches_exact_fits(seed):
+    rng = np.random.default_rng(seed)
+    z = se.ZIP()
+    n_exact = 0
+    for it in range(300):
+        dt = [np.int8, np.int16, np.int32, np.int64][it % 4]
+        la, lb = int(rng.integers(0, 4000)), int(rng.integers(0, 4000))
+        dens = rng.uniform(0, 0.3) if it % 7 else 0.
+        a = np.where(rng.random(la) < dens, rng.poisson(rng.uniform(0.5, 6), la) + 1, 0).astype(dt)
+        b = np.where(rng.random(lb) < dens, rng.poisson(rng.uniform(0.5, 6), lb) + 1, 0).astype(dt)
+        nc = int(rng.integers(1, 8))
+        st = np.sort(rng.integers(0, la + 1, nc)).astype(np.int64)
+        en = np.minimum(st + rng.integers(0, 400, nc), la).astype(np.int64)
+        mus, status, cert, exact = se._ler_mus_nb(a, b, st, en, 1e-4, 1000, se._EPS, 1 << 20)
+        for c in range(nc):
+            le = a.astype(np.int64)
+            le[st[c]:en[c]] = -1
+            w = np.concatenate((le, b.astype(np.int64)))
+            ref = z.fit(w[w >= 0].astype(dt))[0]
+            assert status[c] >= 0
+            if exact[c]:
+                assert mus[c] == ref  # bit for bit
+                n_exact += 1
+            elif cert[c]:
+                assert abs(mus[c] - ref) <= 1e-9 * abs(ref)
+    assert n_exact > 0
+
+
+def test_ler_kernel_rejects_negative_values():
+    a = np.array([0, 1, -1, 2], dtype=np.int16)
+    _, status, _, _ = se._ler_mus_nb(a, a, np.array([0]), np.array([1]), 1e-4, 1000, se._EPS, 1 << 20)
+    assert (status == -1).all()
+
