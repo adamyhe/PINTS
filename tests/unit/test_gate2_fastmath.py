@@ -141,3 +141,32 @@ def test_ler_kernel_rejects_negative_values():
     _, status, _, _ = se._ler_mus_nb(a, a, np.array([0]), np.array([1]), 1e-4, 1000, se._EPS, 1 << 20)
     assert (status == -1).all()
 
+
+# ------------------------------------------------------------------ LRT (sensitive mode)
+def test_chi2_sf_df2_matches_scipy():
+    from scipy.stats import chi2
+    for x in np.concatenate([[-5., 0.], np.geomspace(1e-300, 1e-3, 50), np.linspace(1e-3, 1400, 3000)]):
+        assert abs(se._chi2_sf_df2(float(x)) - chi2.sf(x, 2)) <= 1e-12 * chi2.sf(x, 2)
+    assert se._chi2_sf_df2(1500.) == 0. and np.isnan(se._chi2_sf_df2(float("nan")))
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_fast_lrt_matches_exact(seed):
+    rng = np.random.default_rng(seed)
+    z = se.ZIP()
+    bgs = _windows(seed, n=150)
+    for i, bg in enumerate(bgs):
+        L = int(rng.integers(1, 300))
+        pk = np.where(rng.random(L) < rng.uniform(0., 1.), rng.poisson(rng.uniform(0.5, 20), L), 0).astype(bg.dtype)
+        (we, pe), (wf, pf) = z.lrt(pk, bg), z.lrt_fast_math(pk, bg)
+        assert abs(we - wf) <= 1e-9 * max(abs(we), 1.)
+        if pe > 1e-300 or pf > 1e-300:
+            assert abs(pe - pf) <= 1e-9 * max(pe, pf)
+
+
+def test_fast_lrt_falls_back_to_exact():
+    z = se.ZIP(debug=True)
+    a, b = np.array([0, 3, 1, 0], dtype=np.int32), np.array([0, 0, 1, 2, 0, 0], dtype=np.int32)
+    assert z.lrt_fast_math(a, b) == z.lrt(a, b)
+    z = se.ZIP()
+    assert z.lrt_fast_math(a.astype(float), b.astype(float)) == z.lrt(a.astype(float), b.astype(float))
