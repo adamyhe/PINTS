@@ -15,13 +15,14 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
+import math
 import sys
 
 try:
     import pysam
     import numpy as np
     from scipy.stats import poisson, chi2
-    from scipy.special import gamma, digamma, polygamma, gammaln, psi, factorial, xlogy
+    from scipy.special import gamma, digamma, polygamma, gammaln, psi, factorial, xlogy, pdtrc
     from scipy.optimize import fmin_l_bfgs_b as BFGS
     from abc import ABC, abstractmethod
     from collections import defaultdict
@@ -94,6 +95,11 @@ def _poisson_pmf(k, mu):
 # `a` where mask is True and `b` elsewhere, without materialising it, so the result is bit-identical to
 # ``np.where(mask, a, b).sum()``.
 # ---------------------------------------------------------------------------------------------------
+# Gate 2 certification tolerances (relative), far above the kernel's measured drift (~1e-11), see `_zip_em_nb`
+_STOP_TOL = 1e-12
+_INIT_TOL = 1e-9
+_LER_TOL = 1e-8
+
 try:
     import math
     import numba as _nb
@@ -152,11 +158,19 @@ try:
     # function. Same iteration, initialisation and stopping rule as `ZIP.fit`, but hat_z sums are
     # closed-form (n_zero * v), and exp/log come from LLVM's libm instead of numpy's SIMD kernels, so
     # results agree to ~1e-15 relative per iteration rather than bit for bit.
+    #
+    # The certainty flags are False when a branch of the exact fit could go the other way under that
+    # drift: the moment initialisation's m >= s2 within _INIT_TOL (a near-tie: pi starts at 0, which EM
+    # never leaves, on one side and at a tiny positive value on the other), or a stopping test
+    # |ll - prev| < stop_diff within _STOP_TOL (relative to |ll|; the measured ll error is ~2e-14). They
+    # don't change the returned values; callers whose results feed discrete decisions (LER) use them to
+    # fall back to the exact fit, or for an init tie pass in numpy's exact moments (m_in, s2_in).
     # -----------------------------------------------------------------------------------------------
     @_nb.njit(cache=True, fastmath=False)
     def _zip_em_nb(k, logfact, counts, zero_first, n_zero, n_total, sum_w, lamb, pi, stop_diff, max_iter, eps):
         n_iter = 0
         prev = 0.
+        certain = True
         nz = float(n_zero)
         nn = float(n_total - n_zero)
         m = k.shape[0]
@@ -176,19 +190,23 @@ try:
                     p += pi
                 ll += np.log(max(p, eps)) * counts[j]
             if n_iter > 0:
-                if abs(ll - prev) < stop_diff:
-                    return lamb, pi, ll, True
+                d = abs(ll - prev)
+                if abs(d - stop_diff) <= _STOP_TOL * (abs(ll) + abs(prev)):
+                    certain = False
+                if d < stop_diff:
+                    return lamb, pi, ll, True, certain
                 if n_iter > max_iter:
-                    return lamb, pi, ll, False
+                    return lamb, pi, ll, False, certain
             prev = ll
             n_iter += 1
 
     @_nb.njit(cache=True)
-    def _zip_fit_window_nb(window, stop_diff, max_iter, eps, max_hist):
-        """Whole `ZIP.fit` for a 1-D integer window (default initialisation).
+    def _zip_fit_window_nb(window, stop_diff, max_iter, eps, max_hist, m_in, s2_in):
+        """Whole `ZIP.fit` for a 1-D integer window (default initialisation; moments m_in, s2_in unless NaN).
 
-        Returns (status, lamb, pi, ll, converged); status 0 = all zeros, 1 = no zeros (mean),
-        2 = EM result, -1 = unsupported (negative or very large counts) -> caller uses the exact path.
+        Returns (status, lamb, pi, ll, converged, init_certain, stop_certain); status 0 = all zeros,
+        1 = no zeros (mean), 2 = EM result, -1 = unsupported (negative or very large counts) -> caller uses
+        the exact path.
         """
         n = window.shape[0]
         n_zero = 0
@@ -197,21 +215,25 @@ try:
         for i in range(n):
             x = window[i]
             if x < 0:
-                return -1, 0., 0., 0., False
+                return -1, 0., 0., 0., False, False, False
             if x == 0:
                 n_zero += 1
             if x > mx:
                 mx = x
             s += x
         if n_zero == n:
-            return 0, 0., 0., 0., True
-        m = s / n
-        # moment estimators (ZIP.zip_moment_estimators)
-        ss = 0.
-        for i in range(n):
-            d = window[i] - m
-            ss += d * d
-        s2 = ss / n
+            return 0, 0., 0., 0., True, True, True
+        if m_in == m_in:
+            m, s2, certain = m_in, s2_in, True
+        else:
+            m = s / n
+            # moment estimators (ZIP.zip_moment_estimators)
+            ss = 0.
+            for i in range(n):
+                d = window[i] - m
+                ss += d * d
+            s2 = ss / n
+            certain = abs(m - s2) > _INIT_TOL * max(m, s2)
         if m >= s2:
             pi = 0.
             lamb = m
@@ -219,9 +241,9 @@ try:
             lamb = (s2 + m * m) / m - 1
             pi = (s2 - m) / (s2 + m * m - m)
         if n_zero == 0:
-            return 1, m, 0., np.nan, True
+            return 1, s / n, 0., np.nan, True, True, True
         if mx > max_hist:
-            return -1, 0., 0., 0., False
+            return -1, 0., 0., 0., False, False, False
         hist = np.zeros(mx + 1, dtype=np.int64)
         for i in range(n):
             hist[window[i]] += 1
@@ -239,8 +261,95 @@ try:
                 logfact[j] = math.lgamma(v + 1.)
                 counts[j] = hist[v]
                 j += 1
-        lamb, pi, ll, conv = _zip_em_nb(k, logfact, counts, True, n_zero, n, s, lamb, pi, stop_diff, max_iter, eps)
-        return 2, lamb, pi, ll, conv
+        lamb, pi, ll, conv, c = _zip_em_nb(k, logfact, counts, True, n_zero, n, s, lamb, pi, stop_diff, max_iter,
+                                           eps)
+        return 2, lamb, pi, ll, conv, certain, c
+
+    @_nb.njit(cache=True)
+    def _zip_fit_counts_nb(k, logfact, cnt, n, stop_diff, max_iter, eps):
+        """`ZIP.fit` (default initialisation) from a histogram: values k (sorted, k[0] == 0, float64), their
+        counts cnt (may contain zeros) and n = cnt.sum(). Returns (status, lamb, pi, certain) with the
+        statuses of `_zip_fit_window_nb`; status 0 (all zeros, or an empty window, which `fit` also treats
+        as all zeros) returns lamb = 0."""
+        n_zero = cnt[0]
+        if n_zero == n:
+            return 0, 0., 0., True
+        s = 0.
+        for j in range(k.shape[0]):
+            s += k[j] * cnt[j]
+        m = s / n
+        if n_zero == 0:
+            return 1, m, 0., True
+        ss = 0.
+        for j in range(k.shape[0]):
+            d = k[j] - m
+            ss += cnt[j] * d * d
+        s2 = ss / n
+        certain = abs(m - s2) > _INIT_TOL * max(m, s2)
+        if m >= s2:
+            pi = 0.
+            lamb = m
+        else:
+            lamb = (s2 + m * m) / m - 1
+            pi = (s2 - m) / (s2 + m * m - m)
+        lamb, pi, ll, conv, c = _zip_em_nb(k, logfact, cnt, True, n_zero, n, s, lamb, pi, stop_diff, max_iter, eps)
+        return 2, lamb, pi, certain and c
+
+    @_nb.njit(cache=True)
+    def _ler_mus_nb(env_a, env_b, starts, ends, stop_diff, max_iter, eps, max_hist):
+        """ZIP lambda of ``concatenate((env_a with [starts[c], ends[c]) removed, env_b))`` for every candidate
+        c, from one histogram of env_a + env_b minus each candidate's segment. Returns (mus, status,
+        certain, exact): status -1 everywhere if the inputs are unsupported (negative or very large values);
+        exact[c] when the result is bit-identical to `ZIP.fit`'s (status 0 or 1, or pi = 0 throughout,
+        where lambda is sum / n as in `fit`)."""
+        nc = starts.shape[0]
+        mus = np.zeros(nc)
+        status = np.full(nc, -1, dtype=np.int64)
+        certain = np.zeros(nc, dtype=np.bool_)
+        exact = np.zeros(nc, dtype=np.bool_)
+        mx = 0
+        for x in env_a:
+            if x < 0:
+                return mus, status, certain, exact
+            mx = max(mx, x)
+        for x in env_b:
+            if x < 0:
+                return mus, status, certain, exact
+            mx = max(mx, x)
+        if mx > max_hist:
+            return mus, status, certain, exact
+        hist = np.zeros(mx + 1, dtype=np.int64)
+        for x in env_a:
+            hist[x] += 1
+        for x in env_b:
+            hist[x] += 1
+        idx = np.full(mx + 1, -1, dtype=np.int64)
+        nu = 0
+        for v in range(mx + 1):
+            if hist[v] > 0 or v == 0:  # value 0 always present, so k[0] == 0
+                idx[v] = nu
+                nu += 1
+        k = np.empty(nu)
+        logfact = np.empty(nu)
+        full = np.empty(nu)
+        for v in range(mx + 1):
+            j = idx[v]
+            if j >= 0:
+                k[j] = v
+                logfact[j] = math.lgamma(v + 1.)
+                full[j] = hist[v]
+        n_full = env_a.shape[0] + env_b.shape[0]
+        for c in range(nc):
+            cnt = full.copy()
+            a, b = starts[c], ends[c]
+            for i in range(a, b):
+                cnt[idx[env_a[i]]] -= 1
+            st, lamb, pi, cert = _zip_fit_counts_nb(k, logfact, cnt, n_full - (b - a), stop_diff, max_iter, eps)
+            mus[c] = lamb
+            status[c] = st
+            certain[c] = cert
+            exact[c] = st == 0 or st == 1 or pi == 0.
+        return mus, status, certain, exact
 
     _HAS_NUMBA = True
 except ImportError:  # pragma: no cover
@@ -259,10 +368,15 @@ def numba_warmup():
         _masked_sum(m, 0.5, 1.0)
         if FAST_MATH:
             for dt in (np.int8, np.int16, np.int32, np.int64):
-                _zip_fit_window_nb(np.array([0, 1, 2, 0], dtype=dt), 1e-4, 1000, np.finfo(float).eps, 1 << 20)
+                _zip_fit_window_nb(np.array([0, 1, 2, 0], dtype=dt), 1e-4, 1000, np.finfo(float).eps, 1 << 20, np.nan,
+                                   np.nan)
             k = np.arange(3, dtype=np.float64)
             _zip_em_nb(k, gammaln(k + 1), np.ones(3, dtype=np.float64), True, 1, 3, 3., 1., 0.3, 1e-4, 1000,
                        np.finfo(float).eps)
+            se = np.array([0, 1], dtype=np.int64)
+            for dt in (np.int8, np.int16, np.int32, np.int64):
+                e = np.array([0, 1, 2, 0, 3], dtype=dt)
+                _ler_mus_nb(e, e, se, se + 1, 1e-4, 1000, np.finfo(float).eps, 1 << 20)
 
 
 _EPS = np.finfo(float).eps
@@ -505,8 +619,8 @@ class ZIP(StatModel):
         if _HAS_NUMBA and not self.debug and (self.init_mu is None or self.init_pi is None) \
                 and isinstance(window, np.ndarray) and window.ndim == 1 and window.dtype.kind in "iu" \
                 and window.shape[0] > 0:
-            st, lamb, pi, ll, conv = _zip_fit_window_nb(window, float(self.stop_diff), int(self.max_iter), _EPS,
-                                                        1 << 20)
+            st, lamb, pi, ll, conv, _, _ = _zip_fit_window_nb(window, float(self.stop_diff), int(self.max_iter),
+                                                              _EPS, 1 << 20, np.nan, np.nan)
             if st == 0:
                 return 0, 0, 0, 0, True
             if st == 1:
@@ -629,6 +743,97 @@ def fit_background(stat_tester, window):
     if FAST_MATH and isinstance(stat_tester, ZIP):
         return stat_tester.fit_fast_math(window)
     return stat_tester.fit(window)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Gate 2 for LER: the local-environment refinement only keeps discrete decisions (mask a sub-peak or
+# not), so its fits may come from the kernel as long as every decision is certified to equal the exact
+# fit's. A decision is certified when the compared quantities are further from their cutoff than the
+# kernel's error bound (_LER_TOL relative; exact zeros carry no error); otherwise the caller redoes the
+# exact fits. LER output is then identical to Gate 1's, and only `fit_background` drifts.
+# ---------------------------------------------------------------------------------------------------
+def _ler_fast_ok(stat_tester, *windows):
+    return FAST_MATH and _HAS_NUMBA and isinstance(stat_tester, ZIP) and not stat_tester.debug \
+        and (stat_tester.init_mu is None or stat_tester.init_pi is None) \
+        and all(isinstance(w, np.ndarray) and w.ndim == 1 and w.dtype.kind in "iu" for w in windows)
+
+
+def _certified_ler_mus(stat_tester, env_l, env_r, se_l, se_r):
+    """`bg_mus` of bgIQR's many-candidate LER (candidates in se_l, then se_r), or None when any
+    ``v < outlier_t`` decision could differ from the exact fits'.
+
+    Kernel values carry a relative error bound (_LER_TOL), bit-exact ones none, and the threshold
+    (q1 - IQR) moves by at most 3x the largest bound. Ties are common here (masking sub-peaks with the
+    same counts leaves identical histograms), and only exact values can resolve them, so those calls fall
+    back to the exact fits; refitting just the candidates near the threshold's order statistics refits
+    almost all of them.
+    """
+    if not _ler_fast_ok(stat_tester, env_l, env_r):
+        return None
+    mus, errs = [], []
+    for env_a, env_b, coords in ((env_l, env_r, se_l), (env_r, env_l, se_r)):
+        if not coords:
+            continue
+        st = np.array([b for b, _ in coords], dtype=np.int64)
+        en = np.array([e for _, e in coords], dtype=np.int64)
+        if (st < 0).any() or (en < st).any():
+            return None
+        en = np.minimum(en, env_a.shape[0])
+        st = np.minimum(st, en)
+        m, status, cert, exact = _ler_mus_nb(np.ascontiguousarray(env_a), np.ascontiguousarray(env_b), st, en,
+                                             float(stat_tester.stop_diff), int(stat_tester.max_iter), _EPS, 1 << 20)
+        if (status < 0).any() or not cert.all() or not np.isfinite(m).all():
+            return None
+        mus.append(m)
+        errs.append(np.where(exact, 0., _LER_TOL * np.abs(m)))
+    mus, errs = np.concatenate(mus), np.concatenate(errs)
+    if errs.max() > 0:
+        outlier_t, _ = IQR.get_outlier_threshold(list(mus))
+        if not (np.abs(mus - outlier_t) > errs + 3 * errs.max()).all():
+            return None
+    return list(mus)
+
+
+def _kernel_mu_is_exact(r):
+    """A `_zip_fit_window_nb` result whose lambda is bit-identical to `ZIP.fit`'s: all zeros, no zeros
+    (mean), or pi = 0 throughout (lambda = sum / n; pi starts at 0 from the moments and EM keeps it)."""
+    return r[0] in (0, 1) or r[2] == 0.
+
+
+def _certified_fit(stat_tester, window):
+    """Kernel fit whose stopping decisions match the exact fit's, or None. An initialisation near-tie is
+    resolved with numpy's moments, which are bit-identical to `ZIP.zip_moment_estimators`'s."""
+    sd, mi = float(stat_tester.stop_diff), int(stat_tester.max_iter)
+    r = _zip_fit_window_nb(window, sd, mi, _EPS, 1 << 20, np.nan, np.nan)
+    if r[0] >= 0 and not r[5]:
+        r = _zip_fit_window_nb(window, sd, mi, _EPS, 1 << 20, float(window.mean()), float(window.var()))
+    return r if r[0] >= 0 and r[5] and r[6] else None
+
+
+def _certified_ler_single(stat_tester, peak_window, background_window, fdr_target, enable_eler, peak_threshold):
+    """The few-candidate LER decision ``sf(mu_pk, mu_bg) < fdr_target or (enable_eler and mu_pk >
+    peak_threshold)`` from kernel fits, or None when it could differ from the exact fits' decision."""
+    if not _ler_fast_ok(stat_tester, peak_window, background_window):
+        return None
+    pk, bg = _certified_fit(stat_tester, peak_window), _certified_fit(stat_tester, background_window)
+    if pk is None or bg is None:
+        return None
+    mu_pk, mu_bg = pk[1], bg[1]
+    e_pk = 0. if _kernel_mu_is_exact(pk) else _LER_TOL * abs(mu_pk)
+    if enable_eler:
+        if abs(mu_pk - peak_threshold) <= e_pk:
+            return None
+        if mu_pk > peak_threshold:
+            return True
+    if bg[0] == 0 or not mu_bg > 0:  # degenerate background: leave it to the exact path
+        return None
+    k = math.floor(mu_pk)  # poisson.sf(mu_pk, mu_bg) == pdtrc(floor(mu_pk), mu_bg) for mu_pk >= 0
+    if e_pk > 0 and min(mu_pk - k, k + 1 - mu_pk) <= e_pk:
+        return None
+    p = pdtrc(k, mu_bg)
+    if not abs(p - fdr_target) > 1e-3 * fdr_target:
+        return None
+    return bool(p < fdr_target)
 
 
 class IQR(ABC):
@@ -839,21 +1044,26 @@ class bgIQR(IQR):
 
         n_candidate = len(uncertain_se_l) + len(uncertain_se_r)
         if n_candidate > 3:
-            for b, s in uncertain_se_l:
-                le = np.copy(local_env_left)
-                le[b:s] = -1
-                background_window = np.concatenate((le, local_env_right), axis=None)
+            fast_mus = _certified_ler_mus(stat_tester, local_env_left, local_env_right, uncertain_se_l,
+                                          uncertain_se_r) if FAST_MATH else None
+            if fast_mus is not None:
+                bg_mus = fast_mus
+            else:
+                for b, s in uncertain_se_l:
+                    le = np.copy(local_env_left)
+                    le[b:s] = -1
+                    background_window = np.concatenate((le, local_env_right), axis=None)
 
-                mu_, var_, pi_, llc_, _ = stat_tester.fit(background_window[background_window >= 0])
-                bg_mus.append(mu_)
+                    mu_, var_, pi_, llc_, _ = stat_tester.fit(background_window[background_window >= 0])
+                    bg_mus.append(mu_)
 
-            for b, s in uncertain_se_r:
-                le = np.copy(local_env_right)
-                le[b:s] = -1
-                background_window = np.concatenate((le, local_env_left), axis=None)
+                for b, s in uncertain_se_r:
+                    le = np.copy(local_env_right)
+                    le[b:s] = -1
+                    background_window = np.concatenate((le, local_env_left), axis=None)
 
-                mu_, var_, pi_, llc_, _ = stat_tester.fit(background_window[background_window >= 0])
-                bg_mus.append(mu_)
+                    mu_, var_, pi_, llc_, _ = stat_tester.fit(background_window[background_window >= 0])
+                    bg_mus.append(mu_)
 
             outlier_t, _ = bgIQR.get_outlier_threshold(bg_mus)
             for k, v in enumerate(bg_mus):
@@ -885,12 +1095,15 @@ class bgIQR(IQR):
                     re = query_start_right - (s - 2500)
                     background_window[rs:re] = -1
                 background_window = background_window[background_window >= 0]
-                mu_pk, var_pk, pi_pk, llc_pk, _ = stat_tester.fit(coverage_info[b:s])
-                mu_bg, var_bg, pi_bg, llc_bg, _ = stat_tester.fit(background_window)
+                masked = _certified_ler_single(stat_tester, coverage_info[b:s], background_window, fdr_target,
+                                               enable_eler, peak_threshold) if FAST_MATH else None
+                if masked is None:
+                    mu_pk, var_pk, pi_pk, llc_pk, _ = stat_tester.fit(coverage_info[b:s])
+                    mu_bg, var_bg, pi_bg, llc_bg, _ = stat_tester.fit(background_window)
 
-                p_val_formal = stat_tester.sf(mu_pk, var_pk, pi_pk, mu_bg, var_bg, pi_bg)
-                if p_val_formal < fdr_target or (
-                        enable_eler and mu_pk > peak_threshold):
+                    p_val_formal = stat_tester.sf(mu_pk, var_pk, pi_pk, mu_bg, var_bg, pi_bg)
+                    masked = p_val_formal < fdr_target or (enable_eler and mu_pk > peak_threshold)
+                if masked:
                     new_local_env[se_coords[k][0]:se_coords[k][1]] = -1
                     ler_count += 1
                     cache[cache_key] = 1
@@ -960,12 +1173,15 @@ class pkIQR(IQR):
                     re = query_start_right - (s - 2500)
                     background_window[rs:re] = -1
                 background_window = background_window[background_window >= 0]
-                mu_pk, var_pk, pi_pk, llc_pk, _ = stat_tester.fit(coverage_info[b:s])
-                mu_bg, var_bg, pi_bg, llc_bg, _ = stat_tester.fit(background_window)
+                masked = _certified_ler_single(stat_tester, coverage_info[b:s], background_window, fdr_target,
+                                               enable_eler, peak_threshold) if FAST_MATH else None
+                if masked is None:
+                    mu_pk, var_pk, pi_pk, llc_pk, _ = stat_tester.fit(coverage_info[b:s])
+                    mu_bg, var_bg, pi_bg, llc_bg, _ = stat_tester.fit(background_window)
 
-                p_val_formal = stat_tester.sf(mu_pk, var_pk, pi_pk, mu_bg, var_bg, pi_bg)
-                if p_val_formal < fdr_target or (
-                        enable_eler and mu_pk > peak_threshold):
+                    p_val_formal = stat_tester.sf(mu_pk, var_pk, pi_pk, mu_bg, var_bg, pi_bg)
+                    masked = p_val_formal < fdr_target or (enable_eler and mu_pk > peak_threshold)
+                if masked:
                     new_local_env[se_l[k][0]:se_l[k][1]] = -1
                     ler_count += 1
         return new_local_env[new_local_env >= 0], ler_count
