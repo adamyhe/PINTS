@@ -23,7 +23,7 @@ Ground rules that still apply:
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Only commits re-authored from Biomni's run carry
   `Co-authored-by: Biomni <biomni@phylo.bio>`.
 - **Paired rounds.** Each new `io` commit is timed against fresh gate1 runs in a new paired round:
-  `paired_round` in `bench/variants.json`; round k uses repetitions 100k, 100k+1, …. Round 3 is `0b91493`.
+  `paired_round` in `bench/variants.json`; round k uses repetitions 100k, 100k+1, …. Round 3 is `0b91493`; round 4 is `4ccecaf` (the two quick wins of §5).
 
 ## 2. Measurements behind this note
 
