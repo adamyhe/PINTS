@@ -942,32 +942,38 @@ def _subpeak_block_stats(rc_file, chromosome_name, strand_sign, raw_lines, small
 
 
 def _read_subpeak_input(subpeak_file):
-    with gzip.open(subpeak_file, "rt") as peak_obj:
+    opener = gzip.open if subpeak_file.endswith(".gz") else open  # plain from the pipeline's element definition
+    with opener(subpeak_file, "rt") as peak_obj:
         return peak_obj.readlines()
 
 
 def _subpeak_thresholds(output_file, chromosome_name, subpeak_file, out_lines, all_peak_mus, error,
                         min_mu_percent=0.1, disable_qc=False, enable_eler=True, eler_min=1., indexer=None):
-    """Phase-1 reduce: write + index the subpeak bed and derive the per-chromosome thresholds.
+    """Phase-1 reduce: derive the per-chromosome thresholds, and write + index the subpeak bed when needed.
 
-    `indexer`, if given, is called instead of `index_bed_file` (used to compress/index on the pool while the
-    parent continues; the compressed file is only read by the tabix fallback and by housekeeping).
+    Phase 2 reads the subpeak bed through `ctx["index"]` (a `SubpeakIndex` over `out_lines`). Only when that
+    index does not support the lines (ties, unsorted or empty records) is the bed written, compressed and
+    indexed for the tabix fallback, as before. `indexer`, if given, is called instead of `index_bed_file`
+    (used to compress/index on the pool while the parent continues).
     """
     subpeak_bed = output_file.replace(".bed", __SUB_PEAK_TPL__ % chromosome_name)
     ctx = {"lines": out_lines, "error": None, "chromosome": chromosome_name, "subpeak_file": subpeak_file,
            "subpeak_bed": subpeak_bed}
-    with open(subpeak_bed, "w") as spb_fh:
-        spb_fh.writelines(out_lines)
     if error is not None:
         ctx["error"] = error
         logger.error(str(chromosome_name) + "\t" + str(subpeak_file))
         logger.error(error)
         return ctx
+    index = SubpeakIndex(chromosome_name, out_lines)
+    ctx["index"] = index
     try:
-        if indexer is None:
-            index_bed_file(subpeak_bed, logger=logger)
-        else:
-            indexer(subpeak_bed)
+        if not index.is_supported():
+            with open(subpeak_bed, "w") as spb_fh:
+                spb_fh.writelines(out_lines)
+            if indexer is None:
+                index_bed_file(subpeak_bed, logger=logger)
+            else:
+                indexer(subpeak_bed)
         if len(all_peak_mus) == 0:
             peak_threshold = 1
             bkg_mu_threshold = 0
@@ -1310,7 +1316,7 @@ def _phase(label, t0=[None]):
 
 def _element_definition_task(chrom_coverage, chromosome, sign, output_file, ce_donor, join_distance, ce_trigger):
     return unified_element_definition(chrom_coverage, chromosome, sign, output_file, ce_donor=ce_donor,
-                                      join_distance=join_distance, ce_trigger=ce_trigger)
+                                      join_distance=join_distance, ce_trigger=ce_trigger, compress=False)
 
 
 def _coverage_cost(coverage_dicts, chromosome):
@@ -1405,12 +1411,12 @@ def evaluate_strand_jobs(jobs, fdr_target, pool=None, thread_n=1, **kwargs):
         if c["error"] is not None:
             continue
         lines = c["lines"]
-        index = SubpeakIndex(u[1], lines)
+        index = c["index"]
         if not index.is_supported():  # tabix fallback reads the compressed subpeak bed
             for r in pending_index:
                 r.get()
             pending_index = []
-        slim = {k: v for k, v in c.items() if k != "lines"}
+        slim = {k: v for k, v in c.items() if k not in ("lines", "index")}
         for lo, hi in (_segment_chunks(lines, target) if index.is_supported() else [(0, len(lines))]):
             context = lines if (lo == 0 and hi == len(lines)) else _context_for(index, lines, lo, hi)
             p2_tasks.append((u[2], u[1], lines[lo:hi], context, slim, fdr_target, disable_ler, sensitive,
@@ -1943,7 +1949,7 @@ _MALLOC_TRIM = None
 
 
 def _blockwise_element_definition(coverage_dict, chromosome_of_interest, subpeak_bed, join_distance, ce_donor,
-                                  ce_trigger, block=None):
+                                  ce_trigger, block=None, compress=True):
     """Block-wise form of the body of `unified_element_definition` (same file, same return value).
 
     The merged int32 track is built one block at a time (``zeros(int32)`` then ``+=`` per replicate, the same
@@ -2031,13 +2037,15 @@ def _blockwise_element_definition(coverage_dict, chromosome_of_interest, subpeak
         _release_free_heap()
 
     if index > 1:
+        if not compress:
+            return subpeak_bed
         index_bed_file(subpeak_bed, logger=logger)
         return subpeak_bed + ".gz"
     return None
 
 
 def unified_element_definition(coverage_dict, chromosome_of_interest, strand_sign, output_file,
-                               join_distance=1, ce_donor=1.0, ce_trigger=3):
+                               join_distance=1, ce_donor=1.0, ce_trigger=3, compress=True):
     """
     Unified element boundary definition
     If multiple replicates are present, then this function will merge all signal tracks together
@@ -2058,6 +2066,9 @@ def unified_element_definition(coverage_dict, chromosome_of_interest, strand_sig
         Donor tolerance in best score segments
     ce_trigger : int
         Trigger for receptor tolerance checking
+    compress : bool
+        Compress and index the subpeak bed (returns the .gz path). The pipeline passes False: phase 1 only
+        reads the file from start to end, so it is left plain (same lines).
 
     Returns
     -------
@@ -2068,7 +2079,7 @@ def unified_element_definition(coverage_dict, chromosome_of_interest, strand_sig
     if all(is_zero_track(cd[chromosome_of_interest]) for cd in coverage_dict):
         return None
     blockwise = _blockwise_element_definition(coverage_dict, chromosome_of_interest, subpeak_bed,
-                                              join_distance, ce_donor, ce_trigger)
+                                              join_distance, ce_donor, ce_trigger, compress=compress)
     if blockwise is not False:
         return blockwise
     merged_coverage = merge_covs(coverage_dict, chromosome_of_interest, skip_if_empty=True)
@@ -2097,6 +2108,8 @@ def unified_element_definition(coverage_dict, chromosome_of_interest, strand_sig
                 index += 1
 
     if index > 1:
+        if not compress:
+            return subpeak_bed
         index_bed_file(subpeak_bed, logger=logger)
         return subpeak_bed + ".gz"
     return None
