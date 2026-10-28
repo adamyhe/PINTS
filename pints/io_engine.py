@@ -111,13 +111,14 @@ def _smallest_int_dtype(max_value):
     return None
 
 
-def _bam_contig_worker(task):
+def _count_read_ends(input_bam, contig, mapq, layout, end, rc, start=None, stop=None):
     """
-    Count 5'/3' ends for one contig (exactly the per-read logic of BamParsers) and dump the npys.
+    5'/3' end positions of the reads of one contig (exactly the per-read logic of BamParsers), as
+    (pl_positions, mn_positions, total_reads, n_records).
 
-    Returns (contig, pl_path, mn_path, total_reads, n_records, pl_is_zero, mn_is_zero)
+    With `start`/`stop`, only the records whose alignment starts in [start, stop) are read (and counted in
+    n_records), so the regions of a contig together see every record once.
     """
-    (input_bam, contig, length, mapq, layout, end, rc, pl_fn, mn_fn) = task
     bam = pysam.AlignmentFile(input_bam, "rb")
     pl_pos = []
     mn_pos = []
@@ -126,7 +127,10 @@ def _bam_contig_worker(task):
     skip_r1 = layout == "R2"
     skip_r2 = layout == "R1"
     five = end == "5"
-    for read in bam.fetch(contig):
+    region = start is not None
+    for read in (bam.fetch(contig, start, stop) if region else bam.fetch(contig)):
+        if region and read.reference_start < start:  # overlaps the region but starts before it
+            continue
         n_rec += 1
         if skip_r2 and read.is_read2:
             continue
@@ -145,30 +149,105 @@ def _bam_contig_worker(task):
         else:
             pl_pos.append(pos)
     bam.close()
+    return pl_pos, mn_pos, total, n_rec
 
-    out = []
-    for positions, fn in ((pl_pos, pl_fn), (mn_pos, mn_fn)):
-        if len(positions) == 0:
-            out.append((save_zero_track(fn, length), True))
-            continue
-        uniq, cnt = np.unique(np.asarray(positions, dtype=np.int64), return_counts=True)
-        if uniq[0] < 0 or uniq[-1] >= length:
-            raise IndexError("index %d is out of bounds for axis 0 with size %d" % (
-                uniq[0] if uniq[0] < 0 else uniq[-1], length))
-        # original accumulates in uint32 before choosing the dump dtype
-        cnt = cnt.astype(np.uint32)
-        dt = _smallest_int_dtype(cnt.max())
-        arr = np.zeros(length, dtype=dt)
-        arr[uniq] = cnt.astype(dt)
-        np.save(fn, arr)
-        del arr
-        out.append((fn + ".npy", False))
+
+def _save_end_counts(parts, length, fn):
+    """
+    Dump the per-base counts of one strand, given as (unique positions, counts) parts, with the dtype
+    choice of get_read_signal; returns (path, is_zero_track).
+    """
+    parts = [(u, c) for u, c in parts if len(u)]
+    if not parts:
+        return save_zero_track(fn, length), True
+    lo = min(int(u[0]) for u, _ in parts)
+    hi = max(int(u[-1]) for u, _ in parts)
+    if lo < 0 or hi >= length:
+        raise IndexError("index %d is out of bounds for axis 0 with size %d" % (lo if lo < 0 else hi, length))
+    if len(parts) == 1:
+        uniq, cnt = parts[0]
+    else:  # the same position can come from several parts: sum its counts
+        uniq = np.concatenate([u for u, _ in parts])
+        cnt = np.concatenate([c.astype(np.uint32) for _, c in parts])
+        order = np.argsort(uniq, kind="stable")
+        uniq, cnt = uniq[order], cnt[order]
+        first = np.flatnonzero(np.concatenate(([True], uniq[1:] != uniq[:-1])))
+        uniq, cnt = uniq[first], np.add.reduceat(cnt, first)  # uint32 sums wrap like the original's counters
+    # original accumulates in uint32 before choosing the dump dtype
+    cnt = cnt.astype(np.uint32)
+    dt = _smallest_int_dtype(cnt.max())
+    arr = np.zeros(length, dtype=dt)
+    arr[uniq] = cnt.astype(dt)
+    np.save(fn, arr)
+    del arr
+    return fn + ".npy", False
+
+
+def _unique_counts(positions):
+    if len(positions) == 0:
+        return np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
+    return np.unique(np.asarray(positions, dtype=np.int64), return_counts=True)
+
+
+def _bam_contig_worker(task):
+    """
+    Count 5'/3' ends for one contig and dump the npys.
+
+    Returns (contig, pl_path, mn_path, total_reads, n_records, pl_is_zero, mn_is_zero)
+    """
+    (input_bam, contig, length, mapq, layout, end, rc, pl_fn, mn_fn) = task
+    pl_pos, mn_pos, total, n_rec = _count_read_ends(input_bam, contig, mapq, layout, end, rc)
+    out = [_save_end_counts([_unique_counts(positions)], length, fn) for positions, fn in ((pl_pos, pl_fn),
+                                                                                           (mn_pos, mn_fn))]
     return contig, out[0][0], out[1][0], total, n_rec, out[0][1], out[1][1]
+
+
+def _bam_region_worker(task):
+    """
+    Count 5'/3' ends of the reads starting in one region of a contig.
+
+    Returns (contig, (pl_unique_positions, pl_counts), (mn_unique_positions, mn_counts), total_reads, n_records)
+    """
+    (input_bam, contig, start, stop, mapq, layout, end, rc) = task
+    pl_pos, mn_pos, total, n_rec = _count_read_ends(input_bam, contig, mapq, layout, end, rc, start, stop)
+    # 5' ends of reverse reads can lie past the region, so positions span the contig; int32 holds any
+    # position of a contig below 2**31 bases and halves what goes back to the parent
+    pdt = np.int32 if stop <= np.iinfo(np.int32).max else np.int64
+    packed = []
+    for positions in (pl_pos, mn_pos):
+        u, c = _unique_counts(positions)
+        packed.append((u.astype(pdt), c.astype(np.uint32)))
+    return contig, packed[0], packed[1], total, n_rec
+
+
+def _bam_assemble_worker(task):
+    """Sum the region counts of one contig and dump the npys; returns (contig, pl_path, mn_path, pl_is_zero,
+    mn_is_zero)."""
+    (contig, length, pl_parts, mn_parts, pl_fn, mn_fn) = task
+    pl = _save_end_counts(pl_parts, length, pl_fn)
+    mn = _save_end_counts(mn_parts, length, mn_fn)
+    return contig, pl[0], mn[0], pl[1], mn[1]
+
+
+# contigs are split into regions of at least this many bases when one contig would hold up the others
+BAM_SPLIT_MIN_SPAN = 2_000_000
+
+
+def _bam_regions(length, n_records, records_per_task):
+    """Equal-length regions [start, stop) of a contig, enough that each holds about records_per_task records."""
+    n = min(-(-n_records // records_per_task), length // BAM_SPLIT_MIN_SPAN)
+    if n < 2:
+        return None
+    bounds = [length * i // n for i in range(n + 1)]
+    return list(zip(bounds[:-1], bounds[1:]))
 
 
 def parse_bam_by_contig(input_bam, contigs, mapq, layout, end, rc, output_dir, output_prefix, threads=1):
     """
     Index-based, contig-parallel equivalent of BamParsers + dtype conversion in get_read_signal.
+
+    With several threads, contigs with many more records than an even share are split into regions; their
+    counts are summed per contig before the dump.
 
     Parameters
     ----------
@@ -195,20 +274,53 @@ def parse_bam_by_contig(input_bam, contigs, mapq, layout, end, rc, output_dir, o
     result_pl = {}
     result_mn = {}
     tasks = []
+    split = {}  # contig -> (length, pl_fn, mn_fn)
+    region_tasks = []
+    busy = [(name, length) for name, length in contigs if stats.get(name, None) != 0]
+    per_task = max(1, sum(stats.get(name, 0) for name, _ in busy) // (threads * 4)) if threads > 1 else None
     for name, length in contigs:
         pl_fn = os.path.join(output_dir, output_prefix + "_pl_%s" % name)
         mn_fn = os.path.join(output_dir, output_prefix + "_mn_%s" % name)
         if stats.get(name, None) == 0:
             result_pl[name] = save_zero_track(pl_fn, length)
             result_mn[name] = save_zero_track(mn_fn, length)
-        else:
+            continue
+        regions = _bam_regions(length, stats.get(name, 0), per_task) if per_task is not None else None
+        if regions is None:
             tasks.append((input_bam, name, length, mapq, layout, end, rc, pl_fn, mn_fn))
-    # longest-first scheduling
+        else:
+            split[name] = (length, pl_fn, mn_fn)
+            region_tasks.extend((input_bam, name, a, b, mapq, layout, end, rc) for a, b in regions)
+    # longest-first scheduling (a region's share of its contig's records stands in for its size)
     tasks.sort(key=lambda t: -stats.get(t[1], 0))
-    if threads > 1 and len(tasks) > 1:
+    if threads > 1 and len(tasks) + len(region_tasks) > 1:
         from multiprocessing import Pool
-        with Pool(min(threads, len(tasks))) as pool:
-            results = pool.map(_bam_contig_worker, tasks, chunksize=1)
+        n_regions = {c: 0 for c in split}
+        for t in region_tasks:
+            n_regions[t[1]] += 1
+        jobs = [(_bam_region_worker, t, stats.get(t[1], 0) / n_regions[t[1]]) for t in region_tasks] + \
+               [(_bam_contig_worker, t, stats.get(t[1], 0)) for t in tasks]
+        jobs.sort(key=lambda j: -j[2])
+        with Pool(min(threads, len(jobs))) as pool:
+            pending = [(f, pool.apply_async(f, (t,))) for f, t, _ in jobs]
+            results, parts, assembly = [], {c: [] for c in split}, []
+            for f, r in pending:  # in submission order; each contig is assembled once its last region is in
+                res = r.get()
+                if f is _bam_contig_worker:
+                    results.append(res)
+                    continue
+                contig = res[0]
+                ps = parts[contig]
+                ps.append(res)
+                if len(ps) == n_regions[contig]:
+                    length, pl_fn, mn_fn = split[contig]
+                    task = (contig, length, [p[1] for p in ps], [p[2] for p in ps], pl_fn, mn_fn)
+                    assembly.append((contig, sum(p[3] for p in ps), sum(p[4] for p in ps),
+                                     pool.apply_async(_bam_assemble_worker, (task,))))
+                    del task, ps[:]
+            for contig, total, n_rec, r in assembly:
+                c, pl_path, mn_path, pl_zero, mn_zero = r.get()
+                results.append((contig, pl_path, mn_path, total, n_rec, pl_zero, mn_zero))
     else:
         results = [_bam_contig_worker(t) for t in tasks]
 
@@ -465,7 +577,8 @@ def _get_coverage_bw_tasks(bw_file, chromosome_startswith, output_dir, output_pr
 
 
 def _get_coverage_bw_parallel(bw_files, chromosome_startswith, output_dir, prefixes, threads):
-    """Load several bigWigs with one process pool; same files, dicts (same order) and read counts."""
+    """Load several bigWigs with one process pool (inline, in file order, when threads <= 1); same files, dicts
+    (same order) and read counts."""
     from multiprocessing import get_context
     plans = [_get_coverage_bw_tasks(f, chromosome_startswith, output_dir, p) for f, p in zip(bw_files, prefixes)]
     jobs, owners = [], []
@@ -475,7 +588,9 @@ def _get_coverage_bw_parallel(bw_files, chromosome_startswith, output_dir, prefi
             owners.append(k)
     order = sorted(range(len(jobs)), key=lambda i: -jobs[i][2])
     sums = [None] * len(jobs)
-    if jobs:
+    if threads <= 1:
+        sums = [_bw_chrom_worker(*j) for j in jobs]
+    elif jobs:
         with get_context("fork").Pool(max(1, min(threads, len(jobs)))) as pool:
             for i, r in zip(order, pool.starmap(_bw_chrom_worker, [jobs[i] for i in order], chunksize=1)):
                 sums[i] = r
@@ -519,7 +634,12 @@ def get_coverage_bw(bw_pl, bw_mn, chromosome_startswith, output_dir, output_pref
         Number of total read counts
     """
     logger = logging.getLogger(__logger_name__)
-    if threads > 1:
+    try:
+        import pyBigWig
+        blockwise = bool(pyBigWig.numpy)  # the loader's dense fallback reads values(numpy=True)
+    except ImportError:
+        blockwise = False  # the original loader reports the missing package
+    if threads > 1 or blockwise:
         (pl, pc), (mn, mc) = _get_coverage_bw_parallel((bw_pl, bw_mn), chromosome_startswith, output_dir,
                                                        (output_prefix + "_pl", output_prefix + "_mn"), threads)
     else:
@@ -1027,37 +1147,9 @@ def normalize_using_input(assay_pl, assay_mn, input_pl, input_mn, scale_factor, 
 
     """
 
-    def strand_atom(assay_coverage, input_coverage, sf=1., direction="pl"):
-        results = {}
-        for chrom_name, npy_dump in assay_coverage.items():
-            if chrom_name in input_coverage and is_zero_track(npy_dump) and np.isfinite(sf) and sf >= 0:
-                # exp == 0 everywhere, so max(exp - input * sf, 0) == 0 everywhere -> int8 zeros
-                length = np.load(npy_dump, mmap_mode="r").shape[0]
-                fn = os.path.join(output_dir, output_prefix + "_%s_%s" % (direction, chrom_name)) + ".npy"
-                results[chrom_name] = save_zero_track(fn, length, NP_DT_NAME[0])
-            elif chrom_name in input_coverage:
-                matched_input = np.load(input_coverage[chrom_name]) * sf
-                exp = np.load(npy_dump)
-                adjusted_signal = exp - matched_input
-                adjusted_signal[adjusted_signal < 0] = 0
-                chrom_max = np.max(adjusted_signal)
-                for k, v in enumerate(NP_DT_RANGE):
-                    if v > chrom_max:
-                        adjusted_signal = adjusted_signal.astype(NP_DT_NAME[k], copy=False)
-                        fn = os.path.join(output_dir, output_prefix + "_%s_%s" % (direction, chrom_name)) + ".npy"
-                        np.save(fn, adjusted_signal)
-                        results[chrom_name] = fn
-                        break
-            else:
-                logger.warning("%s doesn't have paired input/control" % chrom_name)
-        return results
-
-    if threads <= 1:
-        coverage_pl = strand_atom(assay_pl, input_pl, sf=scale_factor, direction="pl")
-        coverage_mn = strand_atom(assay_mn, input_mn, sf=scale_factor, direction="mn")
-        return coverage_pl, coverage_mn
-
-    # parallel form: identical per-chromosome operations; dict order, zero tracks and warnings as above
+    # per chromosome: zero assay track -> int8 zeros; otherwise max(exp - input * sf, 0) in the smallest dtype
+    # that holds its max (block-wise, see _normalize_chrom_worker); no control -> warning. Dict order and
+    # warnings follow assay_pl then assay_mn; with threads <= 1 the tasks run inline.
     plan, tasks = [], []
     for assay_coverage, input_coverage, direction in ((assay_pl, input_pl, "pl"), (assay_mn, input_mn, "mn")):
         for chrom_name, npy_dump in assay_coverage.items():
@@ -1389,13 +1481,82 @@ def peak_bed_to_gtf(pl_df, mn_df, save_to, version=""):
     index_bed_file(save_to)
 
 
-def _merge_rep_chrom_worker(pl_files, mn_files, pl_fn, mn_fn):
-    """One chromosome of `merge_replicates_bw` (same operations, same order); returns (pl_sum, mn_sum)."""
+def _merge_rep_strand(files, fn, block=None):
+    """Merge one strand of one chromosome block by block; returns its sum, or None if the inputs need the
+    whole-array code.
+
+    Each block repeats the original element-wise operations (first replicate cast to int32, the others
+    added in place). Integer sums and maxima are exact, so the block totals equal the whole-array ones. The
+    output dtype depends on the maximum, which is known only at the end, so the blocks are written in a
+    guessed dtype (the widest input's: coverage is non-negative, so the merge is rarely wider) while the
+    maximum is taken; if the dtype chosen from it differs, a second pass rewrites the file in that dtype.
+    """
+    block = NPY_BLOCK if block is None else int(block)
+    layouts = [npy_layout(f) for f in files]
+    if any(lay is None or lay[1].kind not in "biu" for lay in layouts) or len({lay[2] for lay in layouts}) != 1 \
+            or layouts[0][2] == 0:
+        return None
+    n = layouts[0][2]
+    in_types = [lay[1] for lay in layouts]
+    guess = max(in_types, key=lambda t: t.itemsize) if all(t in NP_DT_NAME for t in in_types) else None
+    handles = [open(f, "rb") for f in files]
+    try:
+        def merged(a, b):
+            out = npy_read(handles[0], layouts[0], a, b).astype(np.int32)
+            for fh, lay in zip(handles[1:], layouts[1:]):
+                out += npy_read(fh, lay, a, b)
+            return out
+
+        def write_block(fo, layout, a, m, data_type):
+            out = m.astype(data_type, copy=False)
+            fo.seek(layout[0] + a * layout[1].itemsize)
+            fo.write(np.ascontiguousarray(out).view(np.uint8))
+
+        total, chrom_max = None, None
+        fo = None
+        if guess is not None:
+            layout = _npy_create(fn, guess, n)
+            fo = open(fn, "r+b")
+        try:
+            for a in range(0, n, block):
+                m = merged(a, min(n, a + block))
+                s, x = np.sum(m), np.max(m)
+                total = s if total is None else total + s
+                chrom_max = x if chrom_max is None else max(chrom_max, x)
+                if fo is not None:
+                    write_block(fo, layout, a, m, guess)
+        finally:
+            if fo is not None:
+                fo.close()
+        data_type = determine_data_type(chrom_max)
+        if guess is not None and np.dtype(data_type) == guess:
+            return total
+        layout = _npy_create(fn, data_type, n)
+        with open(fn, "r+b") as fo:
+            for a in range(0, n, block):
+                write_block(fo, layout, a, merged(a, min(n, a + block)), data_type)
+        return total
+    finally:
+        for fh in handles:
+            fh.close()
+
+
+def _merge_rep_chrom_worker(pl_files, mn_files, pl_fn, mn_fn, block=None):
+    """One chromosome of `merge_replicates_bw` (same operations, same order); returns (pl_sum, mn_sum).
+
+    Runs block by block (see `_merge_rep_strand`), so a worker holds a few blocks instead of whole-chromosome
+    arrays; inputs that are not plain 1-D integer .npy files of equal length use the original code.
+    """
     def merge_chromosome_data(files):
         merged = np.load(files[0]).astype(np.int32)
         for f in files[1:]:
             merged += np.load(f)
         return merged
+
+    pl_s = _merge_rep_strand(pl_files, pl_fn, block)
+    mn_s = _merge_rep_strand(mn_files, mn_fn, block) if pl_s is not None else None
+    if pl_s is not None and mn_s is not None:
+        return pl_s, mn_s
 
     merged_pl_data = merge_chromosome_data(pl_files)
     pl_s = np.sum(merged_pl_data)
@@ -1485,12 +1646,6 @@ def merge_replicates_bw(per_sample_coverage_pls, per_sample_coverage_mns, output
     if len(per_sample_coverage_pls) != len(per_sample_coverage_mns):
         raise ValueError("Number of replicates for pl and mn must be the same")
 
-    def merge_chromosome_data(sample_data_list, chromosome):
-        merged = np.load(sample_data_list[0][chromosome]).astype(np.int32)
-        for replicate in sample_data_list[1:]:
-            merged += np.load(replicate[chromosome])
-        return merged
-
     # no need to merge if there is only one replicate
     if len(per_sample_coverage_pls) == 1:
         merged_pl = per_sample_coverage_pls[0]
@@ -1526,23 +1681,12 @@ def merge_replicates_bw(per_sample_coverage_pls, per_sample_coverage_mns, output
                 merged_pl[chrom] = save_zero_track(pl_fn, length, determine_data_type(0))
                 merged_mn[chrom] = save_zero_track(mn_fn, length, determine_data_type(0))
                 continue
-            # merge data
-            merged_pl_data = merge_chromosome_data(per_sample_coverage_pls, chrom)
-            pl_rc += np.sum(merged_pl_data)
-            merged_mn_data = merge_chromosome_data(per_sample_coverage_mns, chrom)
-            mn_rc += np.sum(merged_mn_data)
-
-            # merged file paths
-            pl_fn = os.path.join(output_dir, "%s_pl_%s.npy" % (output_prefix, chrom))
-            mn_fn = os.path.join(output_dir, "%s_mn_%s.npy" % (output_prefix, chrom))
+            # merge data (block-wise, same per-chromosome operations as the original loop)
+            pl_s, mn_s = _merge_rep_chrom_worker([d[chrom] for d in per_sample_coverage_pls],
+                                                 [d[chrom] for d in per_sample_coverage_mns], pl_fn, mn_fn)
+            pl_rc += pl_s
+            mn_rc += mn_s
 
             merged_pl[chrom] = pl_fn
             merged_mn[chrom] = mn_fn
-
-            # dump data with appropriate data types
-            data_type = determine_data_type(np.max(merged_pl_data))
-            np.save(pl_fn, merged_pl_data.astype(data_type, copy=False))
-
-            data_type = determine_data_type(np.max(merged_mn_data))
-            np.save(mn_fn, merged_mn_data.astype(data_type, copy=False))
     return merged_pl, merged_mn, pl_rc, mn_rc
