@@ -711,6 +711,31 @@ class ZIP(StatModel):
         p_value = chi2.sf(statistic, df=2)
         return statistic, p_value
 
+    def lrt_fast_math(self, group_1_obs, group_2_obs):
+        """Gate 2 (PINTS_FAST_MATH=1): `lrt` with the three fits from the compiled kernel, which also returns
+        the log-likelihood at the fitted parameters (the exact `log_likelihood` is used where it doesn't:
+        windows without zeros, or kernel fallbacks). The fits sit at the likelihood optimum, so the
+        statistic is insensitive to first order to the kernel's ~1e-11 parameter drift. Falls back to `lrt`
+        when the kernel can't be used."""
+        g1, g2 = np.asarray(group_1_obs), np.asarray(group_2_obs)
+        if not (_HAS_NUMBA and not self.debug and (self.init_mu is None or self.init_pi is None)
+                and g1.ndim == 1 and g2.ndim == 1 and g1.dtype.kind in "iu" and g2.dtype.kind in "iu"
+                and g1.shape[0] > 0 and g2.shape[0] > 0):
+            return self.lrt(group_1_obs, group_2_obs)
+        sd, mi = float(self.stop_diff), int(self.max_iter)
+
+        def loglik(obs):
+            r = _zip_fit_window_nb(obs, sd, mi, _EPS, 1 << 20, np.nan, np.nan)
+            if r[0] == 0:
+                return 0.  # all zeros: lamb = pi = 0 and every pmf is 1
+            if r[0] == 2:
+                return r[3]
+            lamb, _, pi, _, _ = self.fit(obs) if r[0] < 0 else (r[1], r[1], 0., 0., True)
+            return ZIP.log_likelihood(obs, pi, lamb)
+
+        statistic = 2 * (loglik(g1) + loglik(g2) - loglik(np.concatenate((g1, g2))))
+        return statistic, _chi2_sf_df2(statistic)
+
     @staticmethod
     def zip_cdf(x, pi, lambda_):
         """
@@ -736,6 +761,24 @@ class ZIP(StatModel):
     def sf(self, peak_mu, peak_var, peak_pi, le_mu, le_var, le_pi):
         from scipy.stats import poisson
         return poisson.sf(peak_mu, le_mu)
+
+
+def _chi2_sf_df2(x):
+    """chi2.sf(x, df=2) without scipy's per-call overhead: exp(-x / 2) on the support x >= 0 (within 1e-12
+    relative of scipy), 1 below it, and 0 once exp(-x / 2) leaves the normal range (scipy returns 0 from
+    x ~ 1432.7 and subnormals just below; either way p < 1e-307)."""
+    if x != x:
+        return np.nan
+    if x <= 0:
+        return 1.
+    return 0. if x / 2 > 7.09782712893383996843e2 else math.exp(-x / 2)
+
+
+def lrt_background(stat_tester, window, background):
+    """LRT of a tested window against its local background: Gate 2 kernel when PINTS_FAST_MATH=1."""
+    if FAST_MATH and isinstance(stat_tester, ZIP):
+        return stat_tester.lrt_fast_math(window, background)
+    return stat_tester.lrt(window, background)
 
 
 def fit_background(stat_tester, window):
