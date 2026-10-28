@@ -139,3 +139,4 @@ The report states whether the reference and each variant scale with threads. `re
 ## Design notes
 
 - [`design/sparse-coverage.md`](design/sparse-coverage.md): keeping coverage in memory as a sparse store instead of per-base `.npy` dumps, for every input format, with the measurements, the implementation plan and the benchmark plan.
+- [`design/optimisation-audit.md`](design/optimisation-audit.md): where disk, memory and time go after the I/O commits, the remaining candidates, and which to do by hand, by removing tools, or with a search loop.
