@@ -101,3 +101,24 @@ single design once prototyped, do it by hand and keep the loop for tuning.
 **Expected order of gains.** At 64 threads the serial main-process work (A input, C, D, E: ≈ 25–35 s of 50–65 s)
 matters more than the kernel. At 1 thread only G moves the needle. Both are needed; the manual items come first
 because they are cheaper and lower risk.
+
+## 5. Gate 2 follow-up (2026-10-28, `perf/gate2-fast-math` at `6ef1c59`, on top of io `4ccecaf`)
+
+- **Kernel speed.** The existing compiled fit is 27x faster than the exact fit on real background windows
+  (14 µs vs 386 µs, T2 corpus) and within 1.3e-11 relative; its log-likelihood within 2.1e-14. Speeding it up
+  further changes little; the cost had moved to the fits Gate 2 didn't cover.
+- **Certified LER (`f515411`).** LER fits use the kernel when every decision is certified to equal the exact one
+  (margin above the error bound; bit-exact results carry none), else the exact fit. LER output stays identical
+  to Gate 1's, and Gate 2 output is byte-identical to the previous Gate 2 on T1_bw, T1_bam, T1_bam_ct, T2, T4.
+  Few-candidate decisions certify 99.5% of the time. Many-candidate calls certify ~40%: masking sub-peaks
+  with equal counts leaves identical histograms, the kernel then returns identical values, and exact values
+  that differ by ulps decide the tie. Refitting only the candidates near the threshold's order statistics
+  refits almost all of them, so it was dropped. Only exact values resolve these ties, i.e. the batched exact
+  EM (§3, item G) would remove the rest of this cost, in Gate 1 and Gate 2 alike.
+- **Kernel LRT (`6ef1c59`).** Sensitive mode's three LRT fits and log-likelihoods come from the kernel, and
+  chi2.sf(x, 2) is exp(-x/2). 20x faster per test; drift budget passes on T1_bam, T2, T4 (default and
+  sensitive): max relative dp 6.4e-12, no flips, Jaccard 1.0.
+- **Indicative timing** (1 thread, shared node): T2 34.4 → 28.1 s, T4 137.2 → 102.5 s against the previous
+  Gate 2. The kit's gate2 runs will give the real numbers.
+- **Warm-up.** Numba's cache misses on specialisations that use default arguments (0.2–0.45 s per dtype per
+  run); kernels take every argument explicitly.
