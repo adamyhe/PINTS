@@ -135,3 +135,7 @@ The report states whether the reference and each variant scale with threads. `re
 - Runs pin `OMP/MKL/OPENBLAS/NUMBA_NUM_THREADS=1`, `PYTHONHASHSEED` (0 unless the run is a seed check), `LC_ALL=C`, and `TMPDIR` set to the run directory.
 - For stable timings, use the `performance` CPU governor if you can, keep the machine otherwise idle, and avoid running on a node shared with other jobs. `sysinfo` records the governor, THP setting, cgroup limits and `numpy.show_runtime()` (the SIMD extensions in use, which matter for Gate 2 drift).
 - `fetch` checks every ENCODE file against its md5 and records the SHA-256 of every prepared input. It also flags any prepared file whose SHA-256 differs from the Biomni run's. A different samtools version can recompress subset BAMs differently with identical records, so such a flag is informational.
+
+## Design notes
+
+- [`design/sparse-coverage.md`](design/sparse-coverage.md): keeping coverage in memory as a sparse store instead of per-base `.npy` dumps, for every input format, with the measurements, the implementation plan and the benchmark plan.
