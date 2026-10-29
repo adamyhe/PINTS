@@ -3,7 +3,7 @@
  "checkouts": {
   "ref":    {"ref": "main",                     "sha": "81b2dd92c29b455a84f6289f26eaf1b58f910910"},
   "gate1":  {"ref": "perf/gate1-bit-identical", "sha": "f8110c749104c892e1da36cc9939ff5c82ce739b"},
-  "gate2":  {"ref": "perf/gate2-fast-math",     "sha": "bc6fdaf2fbe4375a3590a29506001c23f5ac5a6d"},
+  "gate2":  {"ref": "perf/gate2-fast-math",     "sha": "6ef1c597fa5fcd1e901250453dad03a780a5f2e9"},
   "trackb": {"ref": "fix/trackB-flags",         "sha": "8d582001e56b4a8be1a11dce9e7eafd48dd0c711"},
   "pr4":    {"ref": "fix/empty-frame-dtype",    "sha": "de0febe7eab4e198b1bdb5cdb6382f22ac4e2db8"},
   "io":     {"ref": "perf/io-memory",           "sha": "4ccecaf10b9a13c01b30efe72866166096d3b7ac"}
