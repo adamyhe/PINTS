@@ -2265,7 +2265,52 @@ def get_epig_annotation(annotation_source, output_dir):
     return dst
 
 
-def pair(sample_prefix, df_dict, fdr_target, stringent_only, specific_suffix="", **kwargs):
+def _significant_bins(peak_df, fdr_target, kwargs):
+    """The rows of one strand's peak table that `pair` writes as its significant peaks."""
+    peak_df = peak_df.copy()
+    peak_df = peak_df.loc[peak_df["end"] - peak_df["start"] < kwargs.get("window_size_threshold", 2000), :]
+
+    sig_bins = peak_df.loc[peak_df["padj"] < fdr_target, :]
+    if kwargs.get("keep_sticks", True):
+        return sig_bins
+    return sig_bins.loc[sig_bins.non_zeros > 1, :]
+
+
+def _pair_strand(sample_prefix, label, anti_label, sig_bins, fdr_target, stringent_only, specific_suffix, kwargs):
+    """One strand of `pair`: write its significant peaks and pair them with the opposite strand's candidates.
+    Returns the intermediate files `pair` records for this strand."""
+    generated_files = []
+    generated_files.append(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label))
+    with open(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label), "w") as f:
+        sig_bins.to_csv(f, sep="\t", index=False, header=False)
+
+    if not os.path.exists(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label)):
+        return generated_files + ["", "", ""]
+    merge_opposite_peaks(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label),
+                         sample_prefix + "_%s.bed.gz" % anti_label,
+                         divergent_output_bed=sample_prefix + "%s_sig_%s_divergent_peaks.bed" % (
+                             specific_suffix, label),
+                         bidirectional_output_bed=sample_prefix + "%s_sig_%s_bidirectional_peaks.bed" % (
+                             specific_suffix, label),
+                         singleton_bed=sample_prefix + "%s_sig_%s_singletons_peaks.bed" % (specific_suffix, label),
+                         fdr_target=fdr_target, stringent_only=stringent_only,
+                         **kwargs)
+    generated_files.append(sample_prefix + "%s_sig_%s_divergent_peaks.bed" % (specific_suffix, label))
+    generated_files.append(sample_prefix + "%s_sig_%s_bidirectional_peaks.bed" % (specific_suffix, label))
+    generated_files.append(sample_prefix + "%s_sig_%s_singletons_peaks.bed" % (specific_suffix, label))
+    return generated_files
+
+
+def _bed_is_empty(path):
+    """`BedTool(path).count() == 0`, stopping at the first feature (same rules for header and blank lines)."""
+    try:
+        next(iter(BedTool(path)))
+    except StopIteration:
+        return True
+    return False
+
+
+def pair(sample_prefix, df_dict, fdr_target, stringent_only, specific_suffix="", pool=None, **kwargs):
     """
 
     Parameters
@@ -2281,6 +2326,8 @@ def pair(sample_prefix, df_dict, fdr_target, stringent_only, specific_suffix="",
 
     specific_suffix : str
         If there's anything you want to add to the outputs
+    pool : multiprocessing pool or None
+        If given, the two strands are paired with the opposite strand's peaks on it, in parallel
 
     kwargs :
         window_size_threshold : int
@@ -2298,36 +2345,12 @@ def pair(sample_prefix, df_dict, fdr_target, stringent_only, specific_suffix="",
     data_structure = namedtuple("PairedIntermediateFiles", field_names=(
         "pl_sig_peaks", "div_sig_pl", "bid_sig_pl", "single_sig_pl",
         "mn_sig_peaks", "div_sig_mn", "bid_sig_mn", "single_sig_mn"))
-    generated_files = []
-    for label, anti_label in zip(("pl", "mn"), ("mn", "pl")):
-        peak_df = df_dict[label].copy()
-        peak_df = peak_df.loc[peak_df["end"] - peak_df["start"] < kwargs.get("window_size_threshold", 2000), :]
-
-        sig_bins = peak_df.loc[peak_df["padj"] < fdr_target, :]
-        generated_files.append(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label))
-        with open(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label), "w") as f:
-            if kwargs.get("keep_sticks", True):
-                sig_bins.to_csv(f, sep="\t", index=False, header=False)
-            else:
-                sig_bins.loc[sig_bins.non_zeros > 1, :].to_csv(f, sep="\t", index=False, header=False)
-
-        if not os.path.exists(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label)):
-            generated_files.append("")
-            generated_files.append("")
-            generated_files.append("")
-            continue
-        merge_opposite_peaks(sample_prefix + __SIG_PEAK_TPL__ % (specific_suffix, label),
-                             sample_prefix + "_%s.bed.gz" % anti_label,
-                             divergent_output_bed=sample_prefix + "%s_sig_%s_divergent_peaks.bed" % (
-                                 specific_suffix, label),
-                             bidirectional_output_bed=sample_prefix + "%s_sig_%s_bidirectional_peaks.bed" % (
-                                 specific_suffix, label),
-                             singleton_bed=sample_prefix + "%s_sig_%s_singletons_peaks.bed" % (specific_suffix, label),
-                             fdr_target=fdr_target, stringent_only=stringent_only,
-                             **kwargs)
-        generated_files.append(sample_prefix + "%s_sig_%s_divergent_peaks.bed" % (specific_suffix, label))
-        generated_files.append(sample_prefix + "%s_sig_%s_bidirectional_peaks.bed" % (specific_suffix, label))
-        generated_files.append(sample_prefix + "%s_sig_%s_singletons_peaks.bed" % (specific_suffix, label))
+    strands = [(sample_prefix, label, anti_label, _significant_bins(df_dict[label], fdr_target, kwargs), fdr_target,
+                stringent_only, specific_suffix, kwargs) for label, anti_label in zip(("pl", "mn"), ("mn", "pl"))]
+    if pool is None:
+        generated_files = sum((_pair_strand(*a) for a in strands), [])
+    else:  # the strands only read each other's candidate files, written before pairing
+        generated_files = sum((r.get() for r in [pool.apply_async(_pair_strand, a) for a in strands]), [])
 
     for directionality in ("bidirectional", "divergent", "singletons"):
         exp_pl_file = sample_prefix + "%s_sig_pl_%s_peaks.bed" % (specific_suffix, directionality)
@@ -2336,11 +2359,12 @@ def pair(sample_prefix, df_dict, fdr_target, stringent_only, specific_suffix="",
             if directionality != "singletons":
                 tmp_pl_bed = BedTool(exp_pl_file)
                 tmp_mn_bed = BedTool(exp_mn_file)
-                if tmp_pl_bed.count() == 0 and tmp_mn_bed.count() == 0:
+                pl_empty, mn_empty = _bed_is_empty(exp_pl_file), _bed_is_empty(exp_mn_file)
+                if pl_empty and mn_empty:
                     continue
-                elif tmp_pl_bed.count() == 0:
+                elif pl_empty:
                     pri_merged_file = tmp_mn_bed
-                elif tmp_mn_bed.count() == 0:
+                elif mn_empty:
                     pri_merged_file = tmp_pl_bed
                 else:
                     pri_merged_file = BedTool.cat(*[BedTool(exp_pl_file),
@@ -2877,7 +2901,7 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
 
         logger.info("Pairing peaks")
         (bid, div, unid), gc = pair(sample_prefix, df_dict=df_dict, fdr_target=fdr_target,
-                                    stringent_only=kwargs.get("stringent_only", False), **kwargs)
+                                    stringent_only=kwargs.get("stringent_only", False), pool=pool, **kwargs)
         # reformat unidirectional output
         unid_df = pd.read_csv(unid, sep="\t", names=COMMON_HEADER)
         unid_df[["chromosome", "start", "end", "name", "padj", "strand",
