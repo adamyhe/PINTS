@@ -66,7 +66,9 @@ Variants whose commit did not change, such as `ref`, keep their runs, so only th
 - large contigs split into regions when BAMs are parsed in parallel;
 - background deletion of coverage dumps once they are no longer read, started while the workers only compute;
 - the stratified-filtering table written in parallel chunks, without `bedtools sort`.
-- block-wise control normalisation and interval-based bigWig loading at one thread too (the 1-thread memory peaks of H3 and H2/T3).
+- block-wise control normalisation and interval-based bigWig loading at one thread too (the 1-thread memory peaks of H3 and H2/T3);
+- per-chromosome subpeak beds kept in memory, instead of compressed and indexed with bgzip/tabix (audit item B);
+- phase-2 chunks built from the subpeak bounds the phase-1 workers return, instead of re-parsing every line in the main process (audit item C).
 
 It must match the reference byte for byte like gate1. The `paired` suite times it against gate1 in the same session: alternating, at 1, 16 and 64 threads on the timing datasets, with fresh gate1 runs, so session-to-session noise does not enter the comparison. Each new io commit gets a new round (`paired_round` in `variants.json`; round k uses repetitions 100k, 100k+1, …), so it is timed against new gate1 runs too, and section 7 shows the latest round only. In the same work directory:
 
@@ -78,6 +80,19 @@ bench/run exec --suites paired                                # ~2.5 h
 bench/run report                                              # section 7: io vs gate1
 bench/run profile --variant io                                # optional, profiles io like gate1
 ```
+
+## Running under Slurm (BioHPC BSCB)
+
+`bench/slurm/job.sh` runs `bench/run` commands as a job on cbsubscb19, from the node-local work dir `/workdir/$USER/PINTS/bench_work`, where every timed run so far ran. It brings the node-local repo to the shared repo's HEAD, runs `setup.sh` and `sysinfo`, runs the commands, and copies the results back to the shared `bench_work` even if a command fails:
+
+```bash
+sbatch --dependency=singleton -t 12:00:00 bench/slurm/job.sh 'plan --tier standard --max-threads 64' \
+    'exec --suites equivalence --parallel 2' 'exec --suites paired --max-load 1000' report
+```
+
+- **One node.** Nodes differ in CPU model, which changes timings and the SIMD kernels numpy dispatches to. Compare timings only within one node (`sysinfo` records `lscpu` and numpy's runtime features per job).
+- **`--max-load`.** cbsubscb19 runs other users' jobs (load 130–190). The default `--max-load 2` makes every timed run wait the full 10 minutes without lowering the load, so pass a high value. `load_before` in each record keeps the load visible.
+- **Logs** go to `bench_work/slurm-logs/`.
 
 ## Profiling
 
