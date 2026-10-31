@@ -34,6 +34,11 @@ SPANS = [
     ("pints.io_engine", "normalize_using_input", "ctrl: normalize_using_input"),
     ("pints.io_engine", "_normalize_chrom_worker", "ctrl: chrom worker"),
     ("pints.io_engine", "index_bed_file", "io: index_bed_file"),
+    ("pints.io_engine", "_read_signal", "bam: _read_signal (store)"),
+    ("pints.io_engine", "_coverage_bw", "bw: _coverage_bw (store)"),
+    ("pints.io_engine", "_bw_chrom_worker", "bw: chrom worker"),
+    ("pints.io_engine", "merge_replicate_tracks", "reps: merge_replicate_tracks"),
+    ("pints.io_engine", "normalize_tracks_using_input", "ctrl: normalize_tracks_using_input"),
     ("pints.calling_engine", "parse_input_files", "input: parse_input_files"),
     ("pints.calling_engine", "unified_element_definition", "elements: unified_element_definition"),
     ("pints.calling_engine", "_element_definition_task", "elements: task"),
@@ -41,7 +46,19 @@ SPANS = [
     ("pints.calling_engine", "_subpeak_phase1", "eval: phase1 chrom"),
     ("pints.calling_engine", "_segment_chunks", "eval: segment_chunks"),
     ("pints.calling_engine", "_index_bed_task", "io: index_bed_task"),
+    ("pints.calling_engine", "_check_window_block", "eval: phase2 task"),
+    ("pints.calling_engine", "_subpeak_block_stats", "eval: phase1 task"),
+    ("pints.calling_engine", "_bins_to_df", "eval: bins_to_df"),
+    ("pints.calling_engine", "peaks_single_strand", "filter: peaks_single_strand"),
+    ("pints.calling_engine", "_concat_result_frames", "filter: concat_result_frames"),
+    ("pints.calling_engine", "_stratified_frame", "filter: stratified_frame"),
+    ("pints.calling_engine", "_filter_frame_task", "filter: frame task"),
+    ("pints.calling_engine", "_bed_chunk_task", "filter: bed chunk task"),
+    ("pints.calling_engine", "_bed_assemble_task", "filter: bed assemble task"),
     ("pints.calling_engine", "stratified_filtering", "filter: stratified_filtering"),
+    ("pints.calling_engine", "_pair_task", "pair: pair task"),
+    ("pints.calling_engine", "_pair_strand", "pair: strand"),
+    ("pandas", "read_csv", "io: read_csv"),
     ("pints.stats_engine", "independent_filtering", "filter: independent_filtering"),
     ("pints.calling_engine", "pair", "pair: pair"),
     ("pints.calling_engine", "merge_opposite_peaks", "pair: merge_opposite_peaks"),
@@ -105,7 +122,7 @@ def _install():
         w = _wrap(label, orig)
         for m in list(sys.modules.values()):
             n = getattr(m, "__name__", "") or ""
-            if n.split(".")[0] in ("pints", "pybedtools", "pysam"):
+            if n.split(".")[0] in ("pints", "pybedtools", "pysam", modname.split(".")[0]):
                 for k, v in list(vars(m).items()):
                     if v is orig:
                         setattr(m, k, w)
