@@ -1217,24 +1217,26 @@ def _context_for(index, lines, lo, hi):
     return [lines[i] for i in sel.tolist()], bounds
 
 
-def _worker_init(model_name, iqr_name):
+def _worker_init(model_name, iqr_name, fixes=None):
     """Pool initializer: make the statistical model/IQR strategy available in every worker (spawn-safe)."""
     global stat_tester, iqr_obj
     from . import stats_engine as _se
+    if fixes:
+        _se.configure_fixes(**fixes)
     stat_tester = getattr(_se, model_name)() if model_name else None
     iqr_obj = getattr(_se, iqr_name)() if iqr_name else None
 
 
 def _make_pool(n):
     import multiprocessing as mp
-    from .stats_engine import numba_warmup
+    from .stats_engine import numba_warmup, FIXES
     numba_warmup()
     try:
         ctx = mp.get_context("fork")
     except ValueError:  # pragma: no cover - platforms without fork
         ctx = mp.get_context()
     init_args = (type(stat_tester).__name__ if stat_tester is not None else None,
-                 type(iqr_obj).__name__ if iqr_obj is not None else None)
+                 type(iqr_obj).__name__ if iqr_obj is not None else None, dict(FIXES))
     # The workers' cyclic GC never visits objects that exist at the fork, so it doesn't write to (and copy) the
     # parent's pages in every worker; the parent collects them again after the fork.
     import gc
@@ -1797,6 +1799,7 @@ def merge_opposite_peaks(sig_peak_bed, peak_candidate_bed, divergent_output_bed,
     sfp_fh = open(singleton_bed, "w")  # singletons failed to pair
     close_threshold = kwargs.get("close_threshold", 300)
     min_len_opposite_peaks = kwargs.get("min_len_opposite_peaks", 0)
+    stringent_padj = kwargs.get("stringent_pairs_padj", False)
     for _, line in enumerate(fh):
         items = line.strip().split("\t")
         start = int(items[1])
@@ -1839,7 +1842,9 @@ def merge_opposite_peaks(sig_peak_bed, peak_candidate_bed, divergent_output_bed,
                 # filter peaks on the other strand which are shorter than a threshold
                 if min_len_opposite_peaks > 0 and hit_end - hit_start < min_len_opposite_peaks:
                     continue
-                if stringent_only and float(hit[7]) > fdr_target:
+                if stringent_only and (hit_score >= fdr_target if stringent_padj else float(hit[7]) > fdr_target):
+                    # --stringent-pairs-only: the opposite peak must itself be significant; by its raw p-value
+                    # (column 8, as documented for the CLI flag) or, with --stringent-pairs-padj, by padj (column 5)
                     continue
                 opposite_starts.append(hit_start)
                 opposite_ends.append(hit_end)
@@ -2334,7 +2339,8 @@ def _highlight_chromosome(kwargs):
 
 def _stringent_only(kwargs):
     """`--stringent-pairs-only` is stored as `stringent_pairs_only` by the CLI; `stringent_only` by the API."""
-    return bool(kwargs.get("stringent_only", kwargs.get("stringent_pairs_only", False)))
+    return bool(kwargs.get("stringent_only", kwargs.get("stringent_pairs_only", False))
+                or kwargs.get("stringent_pairs_padj", False))
 
 
 def _significant_bins(peak_df, fdr_target, kwargs):
@@ -2757,6 +2763,9 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
     prefix = os.path.join(output_dir, output_prefix)
 
     log_assert(model in ("Poisson", "ZIP"), "Unsupported model", logger)
+    # opt-in fixes (defaults reproduce legacy results); set before any worker process exists
+    from .stats_engine import configure_fixes
+    configure_fixes(iqr_scale=kwargs.get("iqr_scale", 1.0), fix_ler_flanks=kwargs.get("fix_ler_flanks", False))
     if model == "ZIP":
         stat_tester = ZIP()
     elif model == "Poisson":
