@@ -63,12 +63,47 @@ def active_options():
     return dict(_ACTIVE_OPTIONS)
 
 
-def ler_candidate_background(coverage_info, b, s, query_end_left, query_start_right):
+# Opt-in behaviour fixes. The defaults reproduce legacy PINTS exactly; `peak_calling` sets them through the
+# options registry before any worker process is created (workers receive the same settings).
+FIXES = {"iqr_scale": 1.0, "fix_ler_flanks": False}
+
+
+def configure_fixes(iqr_scale=None, fix_ler_flanks=None):
+    """Set opt-in fixes; arguments left as None keep their current value. Returns the active settings."""
+    if iqr_scale is not None:
+        FIXES["iqr_scale"] = float(iqr_scale)
+    if fix_ler_flanks is not None:
+        FIXES["fix_ler_flanks"] = bool(fix_ler_flanks)
+    return dict(FIXES)
+
+
+register_option("iqr_scale", 1.0, lambda v: configure_fixes(iqr_scale=v) and None)
+register_option("fix_ler_flanks", False, lambda v: configure_fixes(fix_ler_flanks=v) and None)
+
+
+def ler_candidate_background(coverage_info, b, s, query_end_left, query_start_right, fixed=None):
     """Background of a LER candidate [b, s): 2.5 kb on each side, with the peak under test masked.
 
-    `coverage_info[b - 2500:b]` is empty when b < 2500 (negative slice start), and the mask offsets are only valid
-    when the tested peak lies inside the candidate's flank; otherwise they mask an unrelated part of the right flank.
+    Legacy (fixed=False) behaviour is kept verbatim: `coverage_info[b - 2500:b]` is empty when b < 2500 (negative
+    slice start), and the mask offsets are only valid when the tested peak lies inside the candidate's flank;
+    otherwise they wrap / mask an unrelated part of the right flank.
+    Fixed: flanks are clipped to the chromosome and every base in [query_end_left, query_start_right) is removed.
     """
+    if fixed is None:
+        fixed = FIXES["fix_ler_flanks"]
+    if fixed:
+        lo = max(b - 2500, 0)
+        hi = min(s + 2500, len(coverage_info))
+        parts = []
+        for a0, a1 in ((lo, b), (s, hi)):
+            seg = np.asarray(coverage_info[a0:a1])
+            m0 = min(max(query_end_left - a0, 0), len(seg))
+            m1 = min(max(query_start_right - a0, 0), len(seg))
+            if m1 > m0:
+                seg = np.concatenate((seg[:m0], seg[m1:]), axis=None)
+            parts.append(seg)
+        background_window = np.concatenate(parts, axis=None)
+        return background_window[background_window >= 0]
     background_window = np.concatenate((coverage_info[b - 2500:b], coverage_info[s:s + 2500]), axis=None)
     # mask original peak in question
     # this is important to assays which have clean bg/sequenced shallowly
@@ -580,7 +615,7 @@ class ZIP(StatModel):
 
 class IQR(ABC):
     @staticmethod
-    def get_outlier_threshold(data, direction=-1):
+    def get_outlier_threshold(data, direction=-1, scale=None):
         """
         Get outlier threshold
 
@@ -589,6 +624,9 @@ class IQR(ABC):
         data :
         direction : int
             Which direction of outlier threshold to be returned. 1 for upper, 0 for both, -1 for lower
+        scale : float or None
+            Fence multiplier k in Q1 - k*IQR / Q3 + k*IQR. None uses FIXES["iqr_scale"] (legacy 1.0;
+            the PINTS paper and Tukey's rule use 1.5, see --iqr-scale).
         Returns
         -------
         lower_bound : int or None
@@ -599,7 +637,7 @@ class IQR(ABC):
         q1 = np.quantile(data, 0.25)
         q3 = np.quantile(data, 0.75)
         iqr = q3 - q1
-        scale = 1.
+        scale = FIXES["iqr_scale"] if scale is None else float(scale)
         if direction == 1:
             return None, q3 + scale * iqr
         elif direction == -1:
@@ -1056,6 +1094,9 @@ def independent_filtering(df, fdr_target=0.1, output_to=None, logger=None, **kwa
     final_df = df.copy()
     final_df["padj"] = direct_padj
     final_df.loc[select_probe, "padj"] = adjusted_df["padj"]
+    if kwargs.get("strict_independent_filtering", False) and select_probe is not None:
+        # Bourgon et al. 2010: hypotheses removed by the filter are not tested -> padj = 1 (not significant)
+        final_df.loc[~select_probe, "padj"] = 1.
     quantiles_tested_arr = np.asarray(quantiles_tested)
     windows_rejected_arr = np.asarray(windows_rejected)
     if kwargs.get("output_diagnostics", False) and output_to is not None:

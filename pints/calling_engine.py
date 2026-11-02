@@ -1862,6 +1862,7 @@ def merge_opposite_peaks(sig_peak_bed, peak_candidate_bed, divergent_output_bed,
     sfp_fh = open(singleton_bed, "w")  # singletons failed to pair
     close_threshold = kwargs.get("close_threshold", 300)
     min_len_opposite_peaks = kwargs.get("min_len_opposite_peaks", 0)
+    stringent_padj = kwargs.get("stringent_pairs_padj", False)
     for _, line in enumerate(fh):
         items = line.strip().split("\t")
         start = int(items[1])
@@ -1904,7 +1905,9 @@ def merge_opposite_peaks(sig_peak_bed, peak_candidate_bed, divergent_output_bed,
                 # filter peaks on the other strand which are shorter than a threshold
                 if min_len_opposite_peaks > 0 and hit_end - hit_start < min_len_opposite_peaks:
                     continue
-                if stringent_only and float(hit[7]) > fdr_target:
+                if stringent_only and (hit_score >= fdr_target if stringent_padj else float(hit[7]) > fdr_target):
+                    # --stringent-pairs-only: the opposite peak must itself be significant; by its raw p-value
+                    # (column 8, as documented for the CLI flag) or, with --stringent-pairs-padj, by padj (column 5)
                     continue
                 opposite_starts.append(hit_start)
                 opposite_ends.append(hit_end)
@@ -2399,7 +2402,8 @@ def _highlight_chromosome(kwargs):
 
 def _stringent_only(kwargs):
     """`--stringent-pairs-only` is stored as `stringent_pairs_only` by the CLI; `stringent_only` by the API."""
-    return bool(kwargs.get("stringent_only", kwargs.get("stringent_pairs_only", False)))
+    return bool(kwargs.get("stringent_only", kwargs.get("stringent_pairs_only", False))
+                or kwargs.get("stringent_pairs_padj", False))
 
 
 def _significant_bins(peak_df, fdr_target, kwargs):
