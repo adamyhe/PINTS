@@ -1563,7 +1563,7 @@ def _stratified_frame(tmp_df, output_file, fdr_target, dry_run=False, **kwargs):
             result_df = tmp_df_bg
 
         result_df = result_df.loc[:, COMMON_HEADER]
-    result_df.sort_values(by=['chromosome', 'start'], inplace=True)
+    result_df = result_df.sort_values(by=['chromosome', 'start'])
     return result_df
 
 
