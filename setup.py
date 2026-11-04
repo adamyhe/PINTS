@@ -19,7 +19,6 @@ setup(
         "requests",
         "statsmodels>=0.12.1",
         "pyBigWig",
-        "biopython",
         "matplotlib",
     ),
     extras_require={"fast": ["numba>=0.56"]},
