@@ -573,7 +573,7 @@ def cut_peaks_dry_run(annotation_gtf, pl_cov_files, mn_cov_files, tss_extension=
     pct_tss = pct_bed.loc[:, ("seqname", "start", "end", "transcript_id", "gene_name", "strand")]
     pct_tss["start"] = pct_tss.apply(lambda x: x["start"] if x["strand"] == "+" else x["end"] - 1, axis=1)
     pct_tss["end"] = pct_tss.apply(lambda x: x["start"] + 1 if x["strand"] == "+" else x["end"], axis=1)
-    pct_tss.drop_duplicates(subset=["seqname", "start", "end"], inplace=True)
+    pct_tss = pct_tss.drop_duplicates(subset=["seqname", "start", "end"])
     pct_tss_bed = bed_ops.frame_lines(pct_tss)
     pct_tss["start"] -= tss_extension
     pct_tss["end"] += tss_extension
@@ -1674,7 +1674,7 @@ def _stratified_frame(tmp_df, output_file, fdr_target, dry_run=False, **kwargs):
             result_df = tmp_df_bg
 
         result_df = result_df.loc[:, COMMON_HEADER]
-    result_df.sort_values(by=['chromosome', 'start'], inplace=True)
+    result_df = result_df.sort_values(by=['chromosome', 'start'])
     return result_df
 
 
