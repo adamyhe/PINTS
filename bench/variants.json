@@ -8,7 +8,8 @@
   "pr4":    {"ref": "fix/empty-frame-dtype",    "sha": "de0febe7eab4e198b1bdb5cdb6382f22ac4e2db8"},
   "io":     {"ref": "pr/06-bedtools-free",      "sha": "ca581dda5cff78b24454ef8149963115f39cfc4f"},
   "tip":    {"ref": "pr/08-trackb-flags",       "sha": "d7881adb481b743bde3736f227a21dd606844564"},
-  "serial": {"ref": "pr/15-serial-steps",       "sha": "488f524360c6d25849ba55a48d86d96f331893a8"}
+  "serial": {"ref": "pr/15-serial-steps",       "sha": "488f524360c6d25849ba55a48d86d96f331893a8"},
+  "merge":  {"ref": "pr/16-parallel-merge",     "sha": "1715c545964791194e9e363c6807ee8f01bc81ea"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -19,6 +20,7 @@
   "pr4":       {"checkout": "pr4",    "env": {}, "label": "main + empty-frame dtype fix (PR 4)"},
   "io":        {"checkout": "io",     "env": {}, "label": "Gate 1 + I/O and memory commits", "paired_round": 8},
   "tip":       {"checkout": "tip",    "env": {}, "label": "stack tip (pr/08-trackb-flags)"},
-  "serial":    {"checkout": "serial", "env": {}, "label": "tip + serial steps on the pool (pr/15-serial-steps)"}
+  "serial":    {"checkout": "serial", "env": {}, "label": "tip + serial steps on the pool (pr/15-serial-steps)"},
+  "merge":     {"checkout": "merge",  "env": {}, "label": "tip + strand merges on the pool (pr/16-parallel-merge)"}
  }
 }
