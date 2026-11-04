@@ -5,7 +5,7 @@
 
 Runs alternate (a then b on even repetitions, b then a on odd ones) after the load settles, so drift within the
 session affects both sides alike. Every pair must produce the same output hashes. Records go to
-<work>/ab/<a>_vs_<b>.jsonl (rerunning skips finished runs); the summary gives median wall times, their ratio
+<work>/ab/<a>_vs_<b>.jsonl (rerunning skips finished runs, unless --fresh); the summary gives median wall times, their ratio
 and the median of each `[phase]` marker interval.
 """
 import argparse
@@ -33,6 +33,7 @@ def main():
     ap.add_argument("--max-load", type=float, default=2.0)
     ap.add_argument("--settle", type=float, default=3.0)
     ap.add_argument("--timeout", type=float, default=2 * 3600)
+    ap.add_argument("--fresh", action="store_true", help="discard earlier records, so both sides run in this session")
     a = ap.parse_args()
     datasets, var = bench.manifest(), bench.variants()
     for v in (a.a, a.b):
@@ -43,6 +44,8 @@ def main():
     path = os.path.join(out_dir, "%s_vs_%s.jsonl" % (a.a, a.b))
     shas = {v: var["checkouts"][var["variants"][v]["checkout"]]["sha"] for v in (a.a, a.b)}
     done = {}
+    if a.fresh and os.path.exists(path):
+        os.replace(path, path + ".%s" % time.strftime("%Y%m%d_%H%M%S"))
     if os.path.exists(path):
         for line in open(path):
             r = json.loads(line)
