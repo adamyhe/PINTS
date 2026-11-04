@@ -7,7 +7,8 @@
   "trackb": {"ref": "fix/trackB-flags",         "sha": "8d582001e56b4a8be1a11dce9e7eafd48dd0c711"},
   "pr4":    {"ref": "fix/empty-frame-dtype",    "sha": "de0febe7eab4e198b1bdb5cdb6382f22ac4e2db8"},
   "io":     {"ref": "pr/06-bedtools-free",      "sha": "ca581dda5cff78b24454ef8149963115f39cfc4f"},
-  "tip":    {"ref": "pr/08-trackb-flags",       "sha": "d7881adb481b743bde3736f227a21dd606844564"}
+  "tip":    {"ref": "pr/08-trackb-flags",       "sha": "d7881adb481b743bde3736f227a21dd606844564"},
+  "serial": {"ref": "pr/15-serial-steps",       "sha": "20bcb476e9cda6fc1eec3dbaf4311d11ffaf2770"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -17,6 +18,7 @@
   "trackb":    {"checkout": "trackb", "env": {}, "label": "Track B, default flags"},
   "pr4":       {"checkout": "pr4",    "env": {}, "label": "main + empty-frame dtype fix (PR 4)"},
   "io":        {"checkout": "io",     "env": {}, "label": "Gate 1 + I/O and memory commits", "paired_round": 8},
-  "tip":       {"checkout": "tip",    "env": {}, "label": "stack tip (pr/08-trackb-flags)"}
+  "tip":       {"checkout": "tip",    "env": {}, "label": "stack tip (pr/08-trackb-flags)"},
+  "serial":    {"checkout": "serial", "env": {}, "label": "tip + serial steps on the pool (pr/15-serial-steps)"}
  }
 }
