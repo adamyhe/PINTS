@@ -8,7 +8,7 @@
   "pr4":    {"ref": "fix/empty-frame-dtype",    "sha": "de0febe7eab4e198b1bdb5cdb6382f22ac4e2db8"},
   "io":     {"ref": "pr/06-bedtools-free",      "sha": "ca581dda5cff78b24454ef8149963115f39cfc4f"},
   "tip":    {"ref": "pr/08-trackb-flags",       "sha": "d7881adb481b743bde3736f227a21dd606844564"},
-  "serial": {"ref": "pr/15-serial-steps",       "sha": "20bcb476e9cda6fc1eec3dbaf4311d11ffaf2770"}
+  "serial": {"ref": "pr/15-serial-steps",       "sha": "488f524360c6d25849ba55a48d86d96f331893a8"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
