@@ -1,6 +1,6 @@
 ## Opt-in fixes: `--iqr-scale`, `--fix-ler-flanks`, `--strict-independent-filtering`, `--stringent-pairs-padj`
 
-Stacked on the Gate 2 PR (`pr/07-gate2`); review only the last commit.
+Stacked on the bedtools-free PR (`pr/06-bedtools-free`); review only the last commit.
 
 This adds four flags to `pints_caller`. Each corrects a place where the code differs from the PINTS paper, the help
 text, or the method it cites. **All four are off by default, and with none of them set, the output is byte-identical
