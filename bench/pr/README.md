@@ -15,7 +15,7 @@ Branch names keep the numbers they had while being built. The "Upstream" column 
 | A2 | `pr/02-trackb-fixes` | NumPy 2.5 crash; `--focused-chrom`, `--stringent-pairs-only` and `--peak-width` were ignored; `--model Poisson`; non-integer bigWig warning; one-strand pairing |
 | A3 | `pr/09-drop-biopython` | setup.py lists one dependency per line; Biopython replaced with `pysam.FastxFile` |
 | A4 | `pr/10-script-fixes` | `pints_normalizer`, `pints_visualizer`, `pints_counter`, `pints_boundary_extender` and `parse_gtf` fixes |
-| A5 | `pr/13-pandas4` | pandas 4 deprecations on `main`'s code |
+| A5 | `pr/13-pandas4` | pandas 4 deprecations on `main`'s code; functional tests accept pandas 3's `str` dtype |
 
 ## Group B: performance stack
 
@@ -25,7 +25,7 @@ Branch names keep the numbers they had while being built. The "Upstream" column 
 | B2 | `pr/03a-gate1-kernels` | B1 | Exact statistical kernels (ZIP EM, Poisson p-values, independent filtering), optional numba |
 | B3 | `pr/03b-gate1-engine` | B2 | Parallel engine: BAM/bigWig parsing, chunked evaluation, persistent pool, bounded memory |
 | B4 | `pr/04-io` | B3 | I/O and memory |
-| B5 | `pr/05-sparse-coverage` | B4 | In-memory sparse coverage store instead of per-base `.npy` dumps |
+| B5 | `pr/05-sparse-coverage` | B4 | In-memory sparse coverage store instead of per-base `.npy` dumps; old dumps in the output directory are no longer reused |
 | B6 | `pr/06-bedtools-free` | B5 | BED sort/merge in Python; drops pybedtools and the bedtools, bgzip and tabix binaries |
 | B7 | `pr/08-trackb-flags` | B6 | Opt-in flags: `--iqr-scale`, `--fix-ler-flanks`, `--strict-independent-filtering`, `--stringent-pairs-padj` |
 | B8 | `pr/12-fewer-deps` | B7 (+ A3) | Drops statsmodels and requests; matplotlib becomes the optional `plots` extra |
@@ -45,3 +45,5 @@ The restructure on 2026-11-04 made these changes:
 - dropped `pr/00-setup-one-per-line` as a separate PR. Its commit is in A3 and in the stack.
 
 Old heads are kept as local tags `archive/2026-11-04/<branch>`.
+
+On 2026-11-08 the `.npy` cache was dropped (last commit of PR 5; the stack above it was rebased), and `pr/13` gained the pandas 3 test fix.
