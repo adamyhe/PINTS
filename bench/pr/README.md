@@ -29,7 +29,7 @@ Branch names keep the numbers they had while being built. The "Upstream" column 
 | B6 | `pr/06-bedtools-free` | B5 | BED sort/merge in Python; drops pybedtools and the bedtools, bgzip and tabix binaries |
 | B7 | `pr/08-trackb-flags` | B6 | Opt-in flags: `--iqr-scale`, `--fix-ler-flanks`, `--strict-independent-filtering`, `--stringent-pairs-padj` |
 | B8 | `pr/12-fewer-deps` | B7 (+ A3) | Drops statsmodels and requests; matplotlib becomes the optional `plots` extra |
-| B9 | `pr/15-serial-steps` | B8 | Steps after evaluation on the pool: pairing by chromosome, one quantile call, parallel table reads and strand merges |
+| B9 | `pr/15-serial-steps` | B8 | Steps after evaluation on the pool: pairing by chromosome, one quantile call, parallel table reads and strand merges; window-test chunks dispatched by subpeak width |
 | B10 | `pr/07-gate2` | B9 | Opt-in `PINTS_FAST_MATH=1`: compiled ZIP fit (results change within a stated tolerance when enabled) |
 
 Gate 2 comes last because it is the most likely to be debated, and nothing else depends on it.
@@ -40,7 +40,7 @@ The restructure on 2026-11-04 made these changes:
 - moved Gate 2 from after PR 6 to the end;
 - split the test harness out of PR 3a;
 - folded the two stack-only pandas 4 lines (previously `pr/14-pandas4-stack`) into PRs 4 and 6;
-- merged `pr/16-parallel-merge` into PR 15;
+- merged `pr/16-parallel-merge` into PR 15 (and, on 2026-11-08, `pr/17-eval-balance`);
 - merged `pr/10-normalizer-cli` and `pr/11-script-fixes` into `pr/10-script-fixes`;
 - dropped `pr/00-setup-one-per-line` as a separate PR. Its commit is in A3 and in the stack.
 

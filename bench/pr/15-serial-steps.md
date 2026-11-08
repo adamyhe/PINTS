@@ -1,6 +1,6 @@
-## Spread the steps after evaluation over the worker pool
+## Spread the steps after evaluation over the worker pool, and balance the window tests
 
-Stacked on the dependency PR (`pr/12-fewer-deps`); review only the last two commits.
+Stacked on the dependency PR (`pr/12-fewer-deps`); review only the last three commits.
 
 **The output is byte-identical to the base branch.** This PR changes only how the work is split across processes.
 
@@ -15,6 +15,11 @@ one or two processes were busy:
 | Re-reading the two strand tables | 2.3 s | read one after the other in the main process |
 | Pairing | 4.0 s | one task per strand, each indexing the whole opposite-strand candidate file before its first lookup |
 | Merging the strands | about 1.4 s | the bidirectional, divergent and singleton outputs were merged one after the other |
+
+The window tests (phase 2) also ended with a tail. Their chunks were ranked by number of subpeaks. A chrEBV chunk
+costs about twice as much per subpeak as a chunk of a large chromosome, and chrEBV is a single segment, so it
+cannot be split. Its two chunks were dispatched 472nd of 590 and ran alone for about 1.3 s after every other chunk
+had finished.
 
 ### What changes
 
@@ -36,6 +41,9 @@ one or two processes were busy:
   the worker.
 - **The three strand merges run on the pool.** The bidirectional, divergent and singleton merges are independent:
   each reads its own two files and writes its own output. Without a pool, they run one after the other as before.
+- **Window-test chunks are dispatched by total subpeak width.** Width predicts a chunk's run time better than the
+  number of subpeaks: on H3 at 16 threads, it underestimates a chrEBV chunk by 1.35× instead of 2.1×, which is
+  enough to send it first. Results are still returned in task order.
 
 ### Timing
 
@@ -57,8 +65,11 @@ The output hashes matched in every cell.
 | `T5_bam_ct_k562_grocap` | 16 | 9.4 s | 8.9 s | 0.942 | 1.7 → 1.3 s |
 | `T5_bam_ct_k562_grocap` | 64 | 7.6 s | 7.1 s | 0.929 | 1.7 → 1.2 s |
 
-Measured separately, the strand-merge commit alone accounts for 0.970–1.010 of the wall time (H3 at 64 threads:
-37.2 → 36.1 s); the rest comes from the first commit.
+Measured separately:
+- the strand-merge commit alone gives 0.970–1.010 (H3 at 64 threads: 37.2 → 36.1 s); the rest comes from the
+  first commit;
+- the chunk-ordering commit gives 0.962 on H3 at 64 threads (32.9 → 31.6 s, window tests 12.98 → 11.80 s) and
+  0.978–1.004 elsewhere, with identical output. Only H3 had a chrEBV-sized tail.
 
 In the H3 64-thread profile of the first commit:
 - each `independent_filtering` call takes 0.5–0.6 s;
@@ -76,9 +87,10 @@ In the H3 64-thread profile of the first commit:
     10⁶, and leaves no part files;
   - that tables read on the pool equal a read in the parent;
   - that `pair()` on a pool writes the same files as without one, including when one or both strands have no
-    significant peaks.
+    significant peaks;
+  - `tests/unit/test_run_tasks.py`: tasks are dispatched costliest first, and results come back in task order.
 - The new tests and `tests/diff/test_differential_pairing.py` pass under pandas 2.3.1 and 3.1.0. The full suite
-  passes under pandas 2.3.1 (467 passed).
+  passes under pandas 2.3.1 (469 passed).
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1, 4 and 8 threads,
   under pandas 2.3.1 and 3.1.0: the bidirectional, divergent and unidirectional peaks are byte-identical to the
   base branch. No part files are left in the output directory. At 1 and 4 threads under pandas 2.3.1, they are
