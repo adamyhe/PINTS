@@ -12,7 +12,8 @@
   "merge":  {"ref": "pr/16-parallel-merge",     "sha": "1715c545964791194e9e363c6807ee8f01bc81ea"},
   "deps":   {"ref": "pr/12-fewer-deps",         "sha": "c902bfe2977d08e66573dd6b8450047b7b9c12f8"},
   "post":   {"ref": "pr/15-serial-steps",       "sha": "63af67f3d84d71bfd42aed4e8150dc40fd78a976"},
-  "balance": {"ref": "pr/15-serial-steps",      "sha": "2f86269966ccbc5cb6398caba42f1ad8498f163e"}
+  "balance": {"ref": "pr/15-serial-steps",      "sha": "2f86269966ccbc5cb6398caba42f1ad8498f163e"},
+  "p05":     {"ref": "pr/05-sparse-coverage",   "sha": "6774d933dd7c27c75dd765bcd2e41f880afefb69"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -27,6 +28,8 @@
   "merge":     {"checkout": "merge",  "env": {}, "label": "tip + strand merges on the pool (pr/16-parallel-merge)"},
   "deps":      {"checkout": "deps",   "env": {}, "label": "restructured stack before Gate 2: PR 12 (pr/12-fewer-deps c902bfe)"},
   "post":      {"checkout": "post",   "env": {}, "label": "deps + steps after evaluation on the pool (pr/15-serial-steps 63af67f)"},
-  "balance":   {"checkout": "balance", "env": {}, "label": "post + phase-2 chunks dispatched by subpeak width (pr/15-serial-steps 2f86269)"}
+  "balance":   {"checkout": "balance", "env": {}, "label": "post + phase-2 chunks dispatched by subpeak width (pr/15-serial-steps 2f86269)"},
+  "store1":    {"checkout": "p05",    "env": {}, "label": "PR 5 head, coverage store (default)"},
+  "store0":    {"checkout": "p05",    "env": {"PINTS_COVERAGE_STORE": "0"}, "label": "PR 5 head with the store off (.npy dumps)"}
  }
 }
