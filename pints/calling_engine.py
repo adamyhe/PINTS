@@ -1254,26 +1254,27 @@ def _context_for(index, lines, lo, hi):
     return [lines[i] for i in sel.tolist()], bounds
 
 
-def _worker_init(model_name, iqr_name, fixes=None):
+def _worker_init(model_name, iqr_name, fixes=None, fast_math=False):
     """Pool initializer: make the statistical model/IQR strategy available in every worker (spawn-safe)."""
     global stat_tester, iqr_obj
     from . import stats_engine as _se
     if fixes:
         _se.configure_fixes(**fixes)
+    _se.configure_fast_math(fast_math)
     stat_tester = getattr(_se, model_name)() if model_name else None
     iqr_obj = getattr(_se, iqr_name)() if iqr_name else None
 
 
 def _make_pool(n):
     import multiprocessing as mp
-    from .stats_engine import numba_warmup, FIXES
-    numba_warmup()
+    from . import stats_engine as _se
+    _se.numba_warmup()
     try:
         ctx = mp.get_context("fork")
     except ValueError:  # pragma: no cover - platforms without fork
         ctx = mp.get_context()
     init_args = (type(stat_tester).__name__ if stat_tester is not None else None,
-                 type(iqr_obj).__name__ if iqr_obj is not None else None, dict(FIXES))
+                 type(iqr_obj).__name__ if iqr_obj is not None else None, dict(_se.FIXES), _se.FAST_MATH)
     # The workers' cyclic GC never visits objects that exist at the fork, so it doesn't write to (and copy) the
     # parent's pages in every worker; the parent collects them again after the fork.
     import gc
@@ -2911,6 +2912,9 @@ def peak_calling(input_bam, output_dir=".", output_prefix="pints", **kwargs):
     # opt-in fixes (defaults reproduce legacy results); set before any worker process exists
     from .stats_engine import configure_fixes
     configure_fixes(iqr_scale=kwargs.get("iqr_scale", 1.0), fix_ler_flanks=kwargs.get("fix_ler_flanks", False))
+    from .stats_engine import configure_fast_math
+    if not configure_fast_math(kwargs.get("fast_math", False)) and kwargs.get("fast_math", False):
+        logger.warning("--fast-math needs numba (pip install 'pyPINTS[fast]'); using the exact fits instead.")
     if model == "ZIP":
         stat_tester = ZIP()
     elif model == "Poisson":
