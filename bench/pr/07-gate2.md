@@ -76,24 +76,29 @@ the same dataset and config must have:
   significant candidates;
 - a Jaccard index of at least 0.999 for each final set (bidirectional, divergent, unidirectional).
 
-Measured on the old Gate 2 branch, `perf/gate2-fast-math` at `6ef1c59`, against Gate 1 (`f8110c7`), on
-cbsubscb19 at 32 threads. Its Gate 2 changes are the same as this PR's: the five commits add and remove the same
-lines, and `git diff --stat 4ccecaf 6ef1c59 -- pints` (Gate 2 over its exact base) shows the same two files and
-the same 417 insertions and 28 deletions as this PR. Only the base differs: `6ef1c59` sits on the older I/O branch
-(`4ccecaf`), without PRs 5 to 15 (`git diff --stat 6ef1c59 pr/07-gate2 -- pints`: 6 files, 1845 insertions, 422
-deletions). Results, 19 datasets × 3 configs (default, `--disable-small`, `--sensitive`):
+Measured on this branch (`4fc7517`) with `PINTS_FAST_MATH` off and on, on cbsubscb19 (AMD EPYC 9554) at 32
+threads. With the flag off, the output is byte-identical to `main`. Results, 19 datasets × 3 configs (default,
+`--disable-small`, `--sensitive`):
 
 - **57 of 57 pass.**
 - Candidate coordinates identical in every run.
 - Largest relative difference in p: 1.6e-11. In padj: 1.6e-11, except H4 (`H4_bw_liver`, `--sensitive`): 4.2e-7.
 - No significance flips.
 - Jaccard of the final sets: unidirectional 1.0 everywhere; bidirectional and divergent at least 0.99947
-  (T5, `--disable-small`), and 1.0 on 10 of the 19 datasets in the default config.
+  (T5, `--disable-small`), and 1.0 on 29 of the 57 runs (10 of the 19 datasets in the default config).
 
-TODO: explain why some final bidirectional and divergent sets differ (Jaccard below 1) when no candidate's padj
-crosses 0.1. Ties in a later step (pairing) are a guess, not checked.
-
-TODO: rerun the drift report on this branch (`4fc7517`), on the current base.
+**Why some bidirectional and divergent sets differ.** No candidate crosses the cutoff, but 143 of the 147 changed
+pairs come from the choice of partner. When at most one opposite-strand candidate under a peak is significant,
+pairing takes the one with the smallest raw p-value (`np.argmin(opposite_pvals)` in `merge_opposite_peaks`, as on
+`main`). Peaks of the same height in the same local background have mathematically equal p-values. The exact path
+leaves them apart in the last digits (at most 1.9e-14 relative), and the compiled fit can order them the other way
+or make them equal, in which case `argmin` takes the first. Either way, the pair's extent changes. Example (T5,
+default, chr21): two minus-strand candidates of 3 reads have p = 0.5092152243427122 and 0.5092152243427108 on
+the exact path and 0.5092152243427138 for both with the flag on, so the pair starts at 44025833 in one run and at
+44025740 in the other. The other 4 changes (H5, `--sensitive` and `--disable-small`) keep the coordinates, so the
+Jaccard index is unaffected, but report a different forward summit: two plus-strand peaks in the region have the same
+summit height. The order that decides between them was not traced. Every unidirectional difference is in the
+printed padj (column 5) only.
 
 ### Timing
 
