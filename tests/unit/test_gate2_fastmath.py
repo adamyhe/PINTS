@@ -1,4 +1,4 @@
-"""Gate 2 (PINTS_FAST_MATH=1): compiled ZIP EM agrees with the exact (Gate 1) fit within the drift budget,
+"""Gate 2 (--fast-math): compiled ZIP EM agrees with the exact (Gate 1) fit within the drift budget,
 and LER decisions made from it are certified to equal the exact ones."""
 import numpy as np
 import pytest
@@ -40,7 +40,15 @@ def test_fast_fit_matches_exact(monkeypatch, seed):
 
 
 def test_flag_off_is_default():
-    assert se.FAST_MATH is False or __import__("os").environ.get("PINTS_FAST_MATH") == "1"
+    assert se.FAST_MATH is False
+
+
+def test_configure_fast_math(monkeypatch):
+    monkeypatch.setattr(se, "FAST_MATH", False)
+    assert se.configure_fast_math(True) is True and se.FAST_MATH is True
+    assert se.configure_fast_math(False) is False and se.FAST_MATH is False
+    monkeypatch.setattr(se, "_HAS_NUMBA", False)
+    assert se.configure_fast_math(True) is False and se.FAST_MATH is False   # without numba: exact path
 
 
 @pytest.mark.parametrize("model, window", [
