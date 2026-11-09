@@ -14,7 +14,10 @@
   "post":   {"ref": "pr/15-serial-steps",       "sha": "63af67f3d84d71bfd42aed4e8150dc40fd78a976"},
   "balance": {"ref": "pr/15-serial-steps",      "sha": "2f86269966ccbc5cb6398caba42f1ad8498f163e"},
   "p05":     {"ref": "pr/05-sparse-coverage",   "sha": "6774d933dd7c27c75dd765bcd2e41f880afefb69"},
-  "p05fix":  {"ref": "pr/05-sparse-coverage",   "sha": "80a791bb55da11b5e95bf6ace073aaf7e4093bf8"}
+  "p05fix":  {"ref": "pr/05-sparse-coverage",   "sha": "80a791bb55da11b5e95bf6ace073aaf7e4093bf8"},
+  "c06":     {"ref": "pr/06-bedtools-free",     "sha": "6171301f2e8d28ab6b2d71c604ef622a28bc53f7"},
+  "c15":     {"ref": "pr/15-serial-steps",      "sha": "0357468473881e7beba37753d145d7cfc5f2651b"},
+  "c07":     {"ref": "pr/07-gate2",             "sha": "4fc7517de17b09c684ccbff12c6d53705795dc09"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -32,6 +35,9 @@
   "balance":   {"checkout": "balance", "env": {}, "label": "post + phase-2 chunks dispatched by subpeak width (pr/15-serial-steps 2f86269)"},
   "store1":    {"checkout": "p05",    "env": {}, "label": "PR 5 head, coverage store (default)"},
   "store0":    {"checkout": "p05",    "env": {"PINTS_COVERAGE_STORE": "0"}, "label": "PR 5 head with the store off (.npy dumps)"},
-  "eledef":    {"checkout": "p05fix", "env": {}, "label": "PR 5 + element-definition tasks get only their chromosome's entries"}
+  "eledef":    {"checkout": "p05fix", "env": {}, "label": "PR 5 + element-definition tasks get only their chromosome's entries"},
+  "bt":        {"checkout": "c06",    "env": {}, "label": "PR 6 (bedtools-free) on the fixed PR 5"},
+  "s15":       {"checkout": "c15",    "env": {}, "label": "PR 15 head (Gate 2's base)"},
+  "g2fm":      {"checkout": "c07",    "env": {"PINTS_FAST_MATH": "1"}, "label": "PR 7 (Gate 2) with PINTS_FAST_MATH=1"}
  }
 }
