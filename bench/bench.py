@@ -392,7 +392,7 @@ def run_job(j, datasets, var, a):
     os.makedirs(outdir)
     ds = datasets[j["dataset"]]
     cmd = [sys.executable, os.path.join(HERE, "_pints_shim.py"), impl, "1" if j.get("keep") else "0"] + \
-        build_args(ds, j["config"], outdir, j["threads"])
+        build_args(ds, j["config"], outdir, j["threads"]) + v.get("args", [])
     if a.systemd_scope:
         cmd = ["systemd-run", "--user", "--scope", "--quiet", "-p", "MemoryAccounting=yes",
                "--unit=pints-bench-%d-%d" % (os.getpid(), int(time.time() * 1000) % 10 ** 9)] + cmd

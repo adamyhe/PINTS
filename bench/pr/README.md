@@ -29,7 +29,7 @@ Branch names keep the numbers they had while being built. The "Upstream" column 
 | B7 | `pr/08-trackb-flags` | B6 | Opt-in flags: `--iqr-scale`, `--fix-ler-flanks`, `--strict-independent-filtering`, `--stringent-pairs-padj` |
 | B8 | `pr/12-fewer-deps` | B7 (+ A2) | Drops statsmodels and requests; matplotlib becomes the optional `plots` extra |
 | B9 | `pr/15-serial-steps` | B8 | Steps after evaluation on the pool: pairing by chromosome, one quantile call, parallel table reads and strand merges; window-test chunks dispatched by subpeak width |
-| B10 | `pr/07-gate2` | B9 | Opt-in `PINTS_FAST_MATH=1`: compiled ZIP fit (results change within a stated tolerance when enabled) |
+| B10 | `pr/07-gate2` | B9 | Opt-in `--fast-math`: compiled ZIP fit (results change within a stated tolerance when enabled) |
 
 Gate 2 comes last because it is the most likely to be debated, and nothing else depends on it.
 

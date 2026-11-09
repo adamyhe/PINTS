@@ -1,5 +1,5 @@
 {
- "description": "Implementations under test. Each is a git worktree of the given commit under <work>/impl/<checkout>. 'env' is added to the run environment.",
+ "description": "Implementations under test. Each is a git worktree of the given commit under <work>/impl/<checkout>. 'env' is added to the run environment; 'args', if present, to the pints_caller command line.",
  "checkouts": {
   "ref":    {"ref": "main",                     "sha": "81b2dd92c29b455a84f6289f26eaf1b58f910910"},
   "gate1":  {"ref": "perf/gate1-bit-identical", "sha": "f8110c749104c892e1da36cc9939ff5c82ce739b"},
@@ -21,7 +21,8 @@
   "h03":     {"ref": "pr/03-test-harness",      "sha": "0f4e800023c63f4c4346ababf1f1285fc7096609"},
   "k3a":     {"ref": "pr/03a-gate1-kernels",    "sha": "f45b706e2a5ac276c885c17363ab6dff246b0b62"},
   "e3b":     {"ref": "pr/03b-gate1-engine",     "sha": "06d7b740e6f168c02a06c3d2e4196d804e533bc0"},
-  "c04":     {"ref": "pr/04-io",                "sha": "084558aaa2c811d02c9b69435f912d502e706c92"}
+  "c04":     {"ref": "pr/04-io",                "sha": "084558aaa2c811d02c9b69435f912d502e706c92"},
+  "c07cli":  {"ref": "pr/07-gate2",             "sha": "fe8c16f862315473dcb8985bbead62cc8557088c"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -46,6 +47,7 @@
   "h03":       {"checkout": "h03",    "env": {}, "label": "PR 3 test harness (pints/ as on PR 2)"},
   "k3a":       {"checkout": "k3a",    "env": {}, "label": "PR 3a exact kernels"},
   "e3b":       {"checkout": "e3b",    "env": {}, "label": "PR 3b parallel engine"},
-  "c04":       {"checkout": "c04",    "env": {}, "label": "PR 4 I/O follow-ups (PR 5 base)"}
+  "c04":       {"checkout": "c04",    "env": {}, "label": "PR 4 I/O follow-ups (PR 5 base)"},
+  "g2cli":     {"checkout": "c07cli", "env": {}, "args": ["--fast-math"], "label": "PR 7 (Gate 2) with --fast-math"}
  }
 }

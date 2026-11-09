@@ -1,9 +1,9 @@
-## Opt-in `PINTS_FAST_MATH=1`: compiled ZIP fit for the window tests
+## Opt-in `--fast-math`: compiled ZIP fit for the window tests
 
-Stacked on the serial-steps PR (`pr/15-serial-steps`); review only the last five commits.
+Stacked on the serial-steps PR (`pr/15-serial-steps`); review only the last six commits.
 
-**With `PINTS_FAST_MATH` unset (the default), the output is byte-identical to the base branch and to `main`.**
-With `PINTS_FAST_MATH=1`, p-values and padj change by a small relative amount, within a drift budget fixed before
+**Without `--fast-math` (the default), the output is byte-identical to the base branch and to `main`.**
+With `--fast-math`, p-values and padj change by a small relative amount, within a drift budget fixed before
 testing (below). Nothing else in the stack depends on this PR, so it can be left out or merged later.
 
 ### Why
@@ -24,7 +24,7 @@ The kernel (`_zip_em_nb` and `_zip_fit_window_nb` in `stats_engine`) runs the wh
 function: histogram, moment initialisation, EM and log-likelihood. It uses the same iteration, initialisation and
 stopping rule as `ZIP.fit`. It differs in two places: the `hat_z` sums are closed-form (`n_zero * v`), and `exp`
 and `log` come from LLVM's libm instead of numpy's SIMD kernels. So results agree to about 1e-15 relative per
-iteration rather than bit for bit. Where `PINTS_FAST_MATH=1` uses it:
+iteration rather than bit for bit. Where `--fast-math` uses it:
 
 - **The final background fit of each tested window** (`fit_background` in `check_window`). Its λ and π give the
   window's p-value, which is continuous, so the drift is small and stays small.
@@ -59,12 +59,16 @@ could go either way. The drift runs below include `--sensitive`.
 
 **Fallbacks.** Each kernel entry point checks its inputs and calls the exact code when it can't be used: numba not
 installed, debug mode, user-supplied initial values, a window that is not a 1-D integer array, negative counts,
-or counts above 2^20 (the histogram size limit). `PINTS_FAST_MATH=1` without numba therefore runs the exact path,
-and the output is byte-identical to the default. numba is in the existing `fast` extra
+or counts above 2^20 (the histogram size limit). Without numba, `--fast-math` logs a warning and runs the exact
+path, so the output is byte-identical to the default. numba is in the existing `fast` extra
 (`pip install 'pyPINTS[fast]'`). `numba_warmup` compiles the kernels once before the pool starts, so workers
 inherit them.
 
-`PINTS_FAST_MATH` is read once, when `pints.stats_engine` is imported.
+**Option.** `--fast-math` is a `pints_caller` option in the Testing group, next to the other opt-in options.
+`peak_calling` passes it to `stats_engine.configure_fast_math` on every run, before the pool starts, and the pool
+initializer passes it to the workers as it does the Track B options. The first five commits switch the kernels on
+with an environment variable, `PINTS_FAST_MATH=1`, read at import; the last commit replaces it with the option, so
+the variable does nothing in the final branch.
 
 ### Drift budget
 
@@ -76,7 +80,8 @@ the same dataset and config must have:
   significant candidates;
 - a Jaccard index of at least 0.999 for each final set (bidirectional, divergent, unidirectional).
 
-Measured on this branch (`4fc7517`) with `PINTS_FAST_MATH` off and on, on cbsubscb19 (AMD EPYC 9554) at 32
+Measured on this branch at `4fc7517` (before the last commit; `PINTS_FAST_MATH` off and on, the same code paths
+as `--fast-math` now), on cbsubscb19 (AMD EPYC 9554) at 32
 threads. With the flag off, the output is byte-identical to `main`. Results, 19 datasets × 3 configs (default,
 `--disable-small`, `--sensitive`):
 
@@ -102,7 +107,7 @@ printed padj (column 5) only.
 
 ### Timing
 
-With `PINTS_FAST_MATH=1`, against `pr/15-serial-steps` (`0357468`, this branch's base), on cbsubscb19 (AMD
+With the kernels on (`PINTS_FAST_MATH=1` at `4fc7517`), against `pr/15-serial-steps` (this branch's base), on cbsubscb19 (AMD
 EPYC 9554), three alternating runs each, median wall time:
 
 | Dataset | 16 threads | 64 threads |
@@ -121,7 +126,7 @@ Without the flag, this branch's output is identical to `main`.
 - `tests/unit/test_gate2_fastmath.py` (new, 26 tests; skipped without numba):
   - the kernel fit matches `ZIP.fit` within 1e-9 relative (λ, π, log-likelihood) with the same convergence flag, on
     two seeds of about 400 random windows each, int8 to int64; `fit_background` uses the kernel only when the flag is on;
-  - the flag is off by default;
+  - the flag is off by default; `configure_fast_math` turns it on and off, and leaves it off without numba;
   - fallbacks: user-supplied initial values, debug mode, float windows and 2-D windows never call the kernel and
     return `fit`'s result;
   - certified LER: `bgIQR` and `pkIQR` `remove_peaks_in_local_env` give the same environment, count and cache with
@@ -130,8 +135,8 @@ Without the flag, this branch's output is identical to `main`.
   - `_chi2_sf_df2` matches `chi2.sf(x, 2)` within 1e-12 relative from 1e-300 to 1400, and handles NaN and large x;
   - the kernel LRT matches `lrt` within 1e-9 relative, and falls back in debug mode and for float input.
 - Full suite: 495 passed (base branch: 469), with numba 0.61.2 and pandas 2.3.1.
-- chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads, flag
-  unset: the bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
+- chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads, without
+  `--fast-math`: the bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - On the old branch, the certified-LER commit left the Gate 2 output byte-identical to the commit before it on
   T1_bw, T1_bam, T1_bam_ct, T2 and T4, at 1 and 8 threads.
 
