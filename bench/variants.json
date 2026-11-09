@@ -17,7 +17,11 @@
   "p05fix":  {"ref": "pr/05-sparse-coverage",   "sha": "80a791bb55da11b5e95bf6ace073aaf7e4093bf8"},
   "c06":     {"ref": "pr/06-bedtools-free",     "sha": "6171301f2e8d28ab6b2d71c604ef622a28bc53f7"},
   "c15":     {"ref": "pr/15-serial-steps",      "sha": "0357468473881e7beba37753d145d7cfc5f2651b"},
-  "c07":     {"ref": "pr/07-gate2",             "sha": "4fc7517de17b09c684ccbff12c6d53705795dc09"}
+  "c07":     {"ref": "pr/07-gate2",             "sha": "4fc7517de17b09c684ccbff12c6d53705795dc09"},
+  "h03":     {"ref": "pr/03-test-harness",      "sha": "0f4e800023c63f4c4346ababf1f1285fc7096609"},
+  "k3a":     {"ref": "pr/03a-gate1-kernels",    "sha": "f45b706e2a5ac276c885c17363ab6dff246b0b62"},
+  "e3b":     {"ref": "pr/03b-gate1-engine",     "sha": "06d7b740e6f168c02a06c3d2e4196d804e533bc0"},
+  "c04":     {"ref": "pr/04-io",                "sha": "084558aaa2c811d02c9b69435f912d502e706c92"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -38,6 +42,10 @@
   "eledef":    {"checkout": "p05fix", "env": {}, "label": "PR 5 + element-definition tasks get only their chromosome's entries"},
   "bt":        {"checkout": "c06",    "env": {}, "label": "PR 6 (bedtools-free) on the fixed PR 5"},
   "s15":       {"checkout": "c15",    "env": {}, "label": "PR 15 head (Gate 2's base)"},
-  "g2fm":      {"checkout": "c07",    "env": {"PINTS_FAST_MATH": "1"}, "label": "PR 7 (Gate 2) with PINTS_FAST_MATH=1"}
+  "g2fm":      {"checkout": "c07",    "env": {"PINTS_FAST_MATH": "1"}, "label": "PR 7 (Gate 2) with PINTS_FAST_MATH=1"},
+  "h03":       {"checkout": "h03",    "env": {}, "label": "PR 3 test harness (pints/ as on PR 2)"},
+  "k3a":       {"checkout": "k3a",    "env": {}, "label": "PR 3a exact kernels"},
+  "e3b":       {"checkout": "e3b",    "env": {}, "label": "PR 3b parallel engine"},
+  "c04":       {"checkout": "c04",    "env": {}, "label": "PR 4 I/O follow-ups (PR 5 base)"}
  }
 }
