@@ -40,7 +40,7 @@ sync_back() {
 trap sync_back EXIT
 trap 'exit 143' TERM
 
-git -C "$NODE" fetch -q "$SRC" '+refs/heads/*:refs/remotes/shared/*'
+git -C "$NODE" fetch -q "$SRC" '+refs/heads/*:refs/remotes/shared/*' '+refs/archive/*:refs/archive/*'   # archive: old heads that variants still pin
 git -C "$NODE" checkout -q -f --detach "$(git -C "$SRC" rev-parse HEAD)"
 bash "$NODE/bench/setup.sh" >"$PINTS_BENCH_WORK/setup.log" 2>&1 || { tail -20 "$PINTS_BENCH_WORK/setup.log"; exit 1; }
 "$NODE/bench/run" sysinfo >/dev/null
