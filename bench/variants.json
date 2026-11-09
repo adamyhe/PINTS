@@ -22,7 +22,15 @@
   "k3a":     {"ref": "pr/03a-gate1-kernels",    "sha": "f45b706e2a5ac276c885c17363ab6dff246b0b62"},
   "e3b":     {"ref": "pr/03b-gate1-engine",     "sha": "06d7b740e6f168c02a06c3d2e4196d804e533bc0"},
   "c04":     {"ref": "pr/04-io",                "sha": "084558aaa2c811d02c9b69435f912d502e706c92"},
-  "c07cli":  {"ref": "pr/07-gate2",             "sha": "fe8c16f862315473dcb8985bbead62cc8557088c"}
+  "c07cli":  {"ref": "pr/07-gate2",             "sha": "fe8c16f862315473dcb8985bbead62cc8557088c"},
+  "x03b":    {"ref": "pr/03b-gate1-engine",     "sha": "ec792a3af45cbf7b9fe24dd4dbc3479ae028a7ac"},
+  "x04":     {"ref": "pr/04-io",                "sha": "0333d5820c7b021fc9435a10ac021c15bad1c386"},
+  "x05":     {"ref": "pr/05-sparse-coverage",   "sha": "769beba41b78455d54047e2cbece3e7910b5b89f"},
+  "x06":     {"ref": "pr/06-bedtools-free",     "sha": "efe3a3fb6137081ee5cb656af7f672f1056b6c72"},
+  "x08":     {"ref": "pr/08-trackb-flags",      "sha": "7da8a80fe25b05b4bc2f7e4f21f22e2426edbb99"},
+  "x12":     {"ref": "pr/12-fewer-deps",        "sha": "789516e7e546a4d6f2ddcde054b70923550270c3"},
+  "x15":     {"ref": "pr/15-serial-steps",      "sha": "7a18b384696985d02eeeb7ad3529012afe558398"},
+  "x07":     {"ref": "pr/07-gate2",             "sha": "4d17c9d6841cb8eaff5d417f9ea66822717a0dce"}
  },
  "variants": {
   "ref":       {"checkout": "ref",    "env": {}, "label": "upstream main (reference)"},
@@ -48,6 +56,15 @@
   "k3a":       {"checkout": "k3a",    "env": {}, "label": "PR 3a exact kernels"},
   "e3b":       {"checkout": "e3b",    "env": {}, "label": "PR 3b parallel engine"},
   "c04":       {"checkout": "c04",    "env": {}, "label": "PR 4 I/O follow-ups (PR 5 base)"},
-  "g2cli":     {"checkout": "c07cli", "env": {}, "args": ["--fast-math"], "label": "PR 7 (Gate 2) with --fast-math"}
+  "g2cli":     {"checkout": "c07cli", "env": {}, "args": ["--fast-math"], "label": "PR 7 (Gate 2) with --fast-math"},
+  "x03b":      {"checkout": "x03b",  "env": {}, "label": "PR 3b head (2026-11-09)"},
+  "x04":       {"checkout": "x04",   "env": {}, "label": "PR 4 head (2026-11-09)"},
+  "x05":       {"checkout": "x05",   "env": {}, "label": "PR 5 head (2026-11-09)"},
+  "x06":       {"checkout": "x06",   "env": {}, "label": "PR 6 head (2026-11-09)"},
+  "x08":       {"checkout": "x08",   "env": {}, "label": "PR 8 head (2026-11-09)"},
+  "x12":       {"checkout": "x12",   "env": {}, "label": "PR 12 head (2026-11-09)"},
+  "x15":       {"checkout": "x15",   "env": {}, "label": "PR 15 head (2026-11-09)"},
+  "x07":       {"checkout": "x07",   "env": {}, "label": "PR 7 (Gate 2) head, default options (2026-11-09)"},
+  "x07fm":     {"checkout": "x07",    "env": {}, "args": ["--fast-math"], "label": "PR 7 (Gate 2) head with --fast-math (2026-11-09)"}
  }
 }
