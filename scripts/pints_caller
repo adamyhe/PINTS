@@ -174,6 +174,10 @@ if __name__ == "__main__":
                             "(shorter than --small-peak-threshold)")
     group.add_argument("--sensitive", dest="sensitive", action="store_true", required=False,
                        help="Set this switch to enable more sensitive peak calling")
+    group.add_argument("--fast-math", action="store_true", dest="fast_math", required=False, default=False,
+                       help="Fit the local background with compiled kernels (needs numba: pip install "
+                            "'pyPINTS[fast]'). Faster, but p-values and padj differ slightly from the default "
+                            "(relative differences up to about 1e-6), which can change a few calls. Off by default.")
     group.add_argument("--fc", action="store", dest="fc_cutoff",
                        type=float, required=False, default=1.5,
                        help="When using the sensitive mode, this sets the cutoff for applying the likelihood ratio test.")
