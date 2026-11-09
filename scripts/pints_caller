@@ -185,6 +185,10 @@ if __name__ == "__main__":
                        required=False, default=False,
                        help="Windows removed by independent filtering are not tested (padj=1), as in Bourgon et al. "
                             "2010. By default (legacy) they keep the padj from BH over all windows.")
+    group.add_argument("--fast-math", action="store_true", dest="fast_math", required=False, default=False,
+                       help="Fit the local background with compiled kernels (needs numba: pip install "
+                            "'pyPINTS[fast]'). Faster, but p-values and padj differ slightly from the default "
+                            "(relative differences up to about 1e-6), which can change a few calls. Off by default.")
     group.add_argument("--disable-small", action="store_true", required=False, default=False,
                        help="Set this switch to prevent PINTS from reporting very short peaks"
                             "(shorter than --small-peak-threshold)")
