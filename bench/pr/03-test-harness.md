@@ -1,13 +1,13 @@
 ## Add a test harness: a frozen reference copy of PINTS and characterisation tests
 
-Stacked on the bugfix PR (`pr/02-trackb-fixes`); review only the last commit (`0f4e800`). `git rev-list --count
+Stacked on the bugfix PR (`pr/02-trackb-fixes`); review only the last commit (`45639d7`). `git rev-list --count
 pr/02-trackb-fixes..pr/03-test-harness` gives 3. The other two bring in a commit of another PR and disappear when the
 stack is rebased onto `main` after group A has merged:
 
 | Commit | What it is |
 |---|---|
 | `80187c8` | setup.py with one dependency per line, the first commit of the Biopython PR (`pr/09-drop-biopython`) |
-| `4d6b117` | The merge commit that brings `80187c8` in. It changes nothing else |
+| `eb5b1c6` | The merge commit that brings `80187c8` in. It changes nothing else |
 
 The stack needs it: the one-per-line setup.py keeps later PRs that add or remove dependencies from conflicting with
 the Biopython PR.

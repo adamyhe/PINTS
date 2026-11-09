@@ -43,9 +43,14 @@ The restructure on 2026-11-04 made these changes:
 - merged `pr/10-normalizer-cli` and `pr/11-script-fixes` into `pr/10-script-fixes`;
 - dropped `pr/00-setup-one-per-line` as a separate PR. Its commit is in A3 and in the stack.
 
-Old heads are kept as local tags `archive/2026-11-04/<branch>`.
+Old heads are kept as local refs `refs/archive/2026-11-04/<branch>` (not tags: versioneer would read them).
 
 On 2026-11-08 the `.npy` cache was dropped (last commit of PR 5; the stack above it was rebased), and `pr/13` gained the pandas 3 test fix.
 Also on 2026-11-08: PR 1 (`pr/01-empty-frame-dtype`) was folded into PR 2, the duplicated pandas 4 commit in PR 4 was
-squashed, and PR 3b gained the `--stringent-pairs-only` fix for pooled per-sample pairing. Old heads are tagged
-`archive/2026-11-08/<branch>`.
+squashed, and PR 3b gained the `--stringent-pairs-only` fix for pooled per-sample pairing. Old heads are kept as
+`refs/archive/2026-11-08/<branch>`.
+
+On 2026-11-09: PR 5's element-definition fix (stack above rebased); Gate 2's environment variable became
+`--fast-math`; commit messages on PR 6 and Gate 2 reworded; the `Co-authored-by: Biomni` trailers removed from every
+branch (trees unchanged; this rewrites PR 2 and the whole stack, and PR 12 again merges `pr/09`'s own commit).
+Old heads are kept as `refs/archive/2026-11-09/<branch>` and `refs/archive/2026-11-09-msg/<branch>`.

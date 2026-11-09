@@ -63,7 +63,7 @@ With the store, coverage is always built from the BAM or bigWig. The store never
 them either. Dumps already in the output directory are left untouched. With `PINTS_COVERAGE_STORE=0`, the
 behaviour is `main`'s. The public functions above also keep `main`'s behaviour.
 
-This is the last commit (`acb5a99`), so it can be dropped on its own if the maintainers prefer to keep the reuse.
+This is the last commit (`e4c1655`), so it can be dropped on its own if the maintainers prefer to keep the reuse.
 Keeping it would mean loading old dumps into tracks.
 
 ### Timing and memory
@@ -106,7 +106,7 @@ control datasets (H1, H3, H6), and changes by at most +9% elsewhere. PSS leaves 
 show the 37 GB of dumps that no longer go through it.
 
 **cgroup memory peak** (`memory.peak`, which counts the page cache as well as process memory), `pr/04-io` → this
-branch (`80a791b`). Each run ran in its own Slurm step, so it had its own cgroup. The inputs were read in an earlier
+branch (`769beba`). Each run ran in its own Slurm step, so it had its own cgroup. The inputs were read in an earlier
 step, so their page cache was charged there. Two runs each on cbsubscb19; the two runs agreed within 0.2 GB:
 
 | Dataset | 16 threads | 64 threads |

@@ -80,7 +80,7 @@ the same dataset and config must have:
   significant candidates;
 - a Jaccard index of at least 0.999 for each final set (bidirectional, divergent, unidirectional).
 
-Measured on this branch at `4fc7517` (before the last commit; `PINTS_FAST_MATH` off and on, the same code paths
+Measured on this branch at `fd10aab` (before the last commit; `PINTS_FAST_MATH` off and on, the same code paths
 as `--fast-math` now), on cbsubscb19 (AMD EPYC 9554) at 32
 threads. With the flag off, the output is byte-identical to `main`. Results, 19 datasets × 3 configs (default,
 `--disable-small`, `--sensitive`):
@@ -107,7 +107,7 @@ printed padj (column 5) only.
 
 ### Timing
 
-With the kernels on (`PINTS_FAST_MATH=1` at `4fc7517`), against `pr/15-serial-steps` (this branch's base), on cbsubscb19 (AMD
+With the kernels on (`PINTS_FAST_MATH=1` at `fd10aab`), against `pr/15-serial-steps` (this branch's base), on cbsubscb19 (AMD
 EPYC 9554), three alternating runs each, median wall time:
 
 | Dataset | 16 threads | 64 threads |

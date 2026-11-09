@@ -52,7 +52,7 @@ place (`inplace=True` is deprecated in pandas 3.1 and removed in pandas 4; the f
 In the profile of `adada92` (an earlier version of this branch's first commit, on the store), the H1 and H3 runs
 at 64 threads created no `pybdt_*` files.
 
-Against `pr/05-sparse-coverage` (`80a791b`), on cbsubscb19 (AMD EPYC 9554), three alternating runs each, median
+Against `pr/05-sparse-coverage` (`769beba`), on cbsubscb19 (AMD EPYC 9554), three alternating runs each, median
 wall time:
 
 | Dataset | 16 threads | 64 threads |
