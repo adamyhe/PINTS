@@ -204,7 +204,7 @@ try:
         return res
 
     # -----------------------------------------------------------------------------------------------
-    # Gate 2 (drift-tolerant, opt-in with PINTS_FAST_MATH=1): the whole ZIP EM loop in one compiled
+    # Gate 2 (drift-tolerant, opt-in with --fast-math): the whole ZIP EM loop in one compiled
     # function. Same iteration, initialisation and stopping rule as `ZIP.fit`, but hat_z sums are
     # closed-form (n_zero * v), and exp/log come from LLVM's libm instead of numpy's SIMD kernels, so
     # results agree to ~1e-15 relative per iteration rather than bit for bit.
@@ -405,8 +405,17 @@ try:
 except ImportError:  # pragma: no cover
     _HAS_NUMBA = False
 
-import os as _os
-FAST_MATH = _os.environ.get("PINTS_FAST_MATH", "0") == "1"
+# Gate 2 switch (`--fast-math`); `configure_fast_math` is called by `peak_calling` before any worker process is
+# created (workers inherit/receive the same setting).
+FAST_MATH = False
+
+
+def configure_fast_math(enabled):
+    """Turn the Gate 2 kernels on or off. Without numba they stay off, so results are exact. Returns the active
+    setting."""
+    global FAST_MATH
+    FAST_MATH = bool(enabled) and _HAS_NUMBA
+    return FAST_MATH
 
 
 def numba_warmup():
@@ -688,7 +697,7 @@ class ZIP(StatModel):
             n_iter += 1
 
     def fit_fast_math(self, window):
-        """Gate 2 (PINTS_FAST_MATH=1): `fit` computed by one compiled kernel; agrees with `fit` to ~1e-12
+        """Gate 2 (--fast-math): `fit` computed by one compiled kernel; agrees with `fit` to ~1e-12
         relative, not bit for bit. Used only where the result feeds continuous quantities (the final local
         background of a tested window), never for discrete decisions (LER masking, thresholds), because
         those amplify any drift into different peak calls. Falls back to `fit` when unsupported."""
@@ -788,7 +797,7 @@ class ZIP(StatModel):
         return statistic, p_value
 
     def lrt_fast_math(self, group_1_obs, group_2_obs):
-        """Gate 2 (PINTS_FAST_MATH=1): `lrt` with the three fits from the compiled kernel, which also returns
+        """Gate 2 (--fast-math): `lrt` with the three fits from the compiled kernel, which also returns
         the log-likelihood at the fitted parameters (the exact `log_likelihood` is used where it doesn't:
         windows without zeros, or kernel fallbacks). The fits sit at the likelihood optimum, so the
         statistic is insensitive to first order to the kernel's ~1e-11 parameter drift. Falls back to `lrt`
@@ -851,14 +860,14 @@ def _chi2_sf_df2(x):
 
 
 def lrt_background(stat_tester, window, background):
-    """LRT of a tested window against its local background: Gate 2 kernel when PINTS_FAST_MATH=1."""
+    """LRT of a tested window against its local background: Gate 2 kernel with --fast-math."""
     if FAST_MATH and isinstance(stat_tester, ZIP):
         return stat_tester.lrt_fast_math(window, background)
     return stat_tester.lrt(window, background)
 
 
 def fit_background(stat_tester, window):
-    """Final local-background fit of a tested window: Gate 2 kernel when PINTS_FAST_MATH=1, exact otherwise."""
+    """Final local-background fit of a tested window: Gate 2 kernel with --fast-math, exact otherwise."""
     if FAST_MATH and isinstance(stat_tester, ZIP):
         return stat_tester.fit_fast_math(window)
     return stat_tester.fit(window)
