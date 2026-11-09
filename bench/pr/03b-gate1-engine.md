@@ -119,7 +119,17 @@ thread it is lower everywhere except `H2` and `T3`, where it is about the same (
 the number of workers (3.5, 9.1, 15.6 and 25.6 GB at 1, 4, 8 and 16 threads). The next PR (B4, I/O and memory)
 works on this.
 
-TODO: the kernels PR (B2) and this PR have not been measured separately.
+**This PR on its own**, against `pr/03a-gate1-kernels`, on cbsubscb19, three alternating runs each, median wall
+time:
+
+| Dataset | 16 threads | 64 threads |
+|---|---|---|
+| `H3_bam_ct_gm12878_grocap` | 455.5 → 86.9 s (0.191) | 456.7 → 69.4 s (0.152) |
+| `T4_bam_reps_hct116` | 446.1 → 35.6 s (0.080) | 449.1 → 26.8 s (0.060) |
+| `T5_bam_ct_k562_grocap` | 291.3 → 16.1 s (0.055) | 291.1 → 13.6 s (0.047) |
+
+Outputs are identical. The kernels PR (B2) alone gives 0.56–0.74 at 16 threads on the same datasets (see its
+description); the table above with the reference covers both.
 
 ### Testing
 

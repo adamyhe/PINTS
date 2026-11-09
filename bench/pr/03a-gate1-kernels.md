@@ -47,8 +47,18 @@ Stratified filtering has two similar costs: the small-peak p-values are computed
 
 ### Timing
 
-TODO: this PR has not been benchmarked on its own. The Gate 1 measurements in the next PR (B3) cover this PR and B3
-together.
+Against `pr/03-test-harness` (whose `pints/` is the same as PR 2's), on cbsubscb19 (AMD EPYC 9554) at 16 threads,
+three alternating runs each, median wall time, numba installed:
+
+| Dataset | Wall time |
+|---|---|
+| `H3_bam_ct_gm12878_grocap` | 616.9 → 454.7 s (0.737) |
+| `T4_bam_reps_hct116` | 796.0 → 446.7 s (0.561) |
+| `T5_bam_ct_k562_grocap` | 394.6 → 292.2 s (0.741) |
+
+Outputs are identical. 64 threads were not measured: the base's wall time hardly changes between 16 and 64 threads
+(see B3's table). Most of the remaining time goes to work that the next PR (B3) parallelises; B3 on its own takes
+these runs to 0.05–0.19 of this PR's time.
 
 ### Testing
 

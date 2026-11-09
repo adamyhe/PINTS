@@ -105,8 +105,20 @@ At 1 thread, peak PSS falls by 16–22% on every dataset. At 16 and 64 threads, 
 control datasets (H1, H3, H6), and changes by at most +9% elsewhere. PSS leaves out the page cache, so it does not
 show the 37 GB of dumps that no longer go through it.
 
-TODO: measure the job's cgroup memory peak (which includes the page cache) before and after; the kit's
-`cgroup_peak_gb` was not available on cbsubscb19.
+**cgroup memory peak** (`memory.peak`, which counts the page cache as well as process memory), `pr/04-io` → this
+branch (`80a791b`). Each run ran in its own Slurm step, so it had its own cgroup. The inputs were read in an earlier
+step, so their page cache was charged there. Two runs each on cbsubscb19; the two runs agreed within 0.2 GB:
+
+| Dataset | 16 threads | 64 threads |
+|---|---|---|
+| `H1_bam_reps_karpas422` | 38.0 → 3.4 GB | 38.7 → 4.7 GB |
+| `H3_bam_ct_gm12878_grocap` | 38.5 → 4.2 GB | 40.8 → 5.4 GB |
+| `T4_bam_reps_hct116` | 5.5 → 2.2 GB | 5.8 → 3.1 GB |
+| `T5_bam_ct_k562_grocap` | 3.7 → 1.2 GB | 3.8 → 1.8 GB |
+
+On the genome-wide datasets, the base's peak is mostly the page cache of the per-base `.npy` dumps it writes. That
+cache can be reclaimed, so a job given less memory does not fail for it, but the kernel has to write back and
+evict it under the limit; on a machine without a limit it pushes out other cached data.
 
 **Phases** (seconds, base → this branch):
 
