@@ -1,6 +1,7 @@
-## Fix a NumPy 2.5 crash, three ignored options, `--model Poisson` and one-strand pairing
+## Fix a NumPy 2.5 crash, three ignored options, `--model Poisson`, one-strand pairing and result dtypes
 
-Against `main`. Five independent fixes, one commit each. Review them commit by commit.
+Against `main`. Six independent fixes, one commit each, plus a regression test for the first. Review them commit by
+commit.
 
 **With default options, the output is byte-identical to the current release.** Results change only for runs that
 set `--focused-chrom`, `--stringent-pairs-only` or `--peak-width`. Those options had no effect before, and now they
@@ -8,6 +9,8 @@ do what their help text says.
 
 | Commit | Problem | Fix |
 |---|---|---|
+| Filtering: skip empty per-chromosome frames when concatenating results | A chromosome with candidate peaks but no testable peak returns an empty result frame, and all its columns have object dtype. `peaks_single_strand` concatenated it with the other chromosomes' frames, so every integer column of the strand table (`start`, `end`, `reads`, `summit`, `ler_*`, `non_zeros`) became object. `independent_filtering` then ran its 200 quantiles per call on arrays of Python ints | `_concat_result_frames` leaves out the empty frames before `pd.concat`. They contribute no rows, so the values and their order are unchanged. If every frame is empty, it concatenates them as before |
+| Add a regression test for dtype-preserving concatenation of result frames | | `tests/test_concat_result_frames.py` |
 | Compute `get_elbow`'s cross product without `np.cross` on 2-D vectors | NumPy 2.5 removed `np.cross` for 2-D vectors. A fresh `pip install` gets NumPy 2.5, and then every peak calling run fails with `ValueError: Both input arrays must be (arrays of) 3-dimensional vectors` | The z component is written out with the same arithmetic NumPy used, so elbows are bit-for-bit unchanged |
 | Pass `--focused-chrom`, `--stringent-pairs-only` and `--peak-width` on to the engine | The CLI stores them as `focused_chrom`, `stringent_pairs_only` and `peak_width`. The engine read `highlight_chromosome` and `stringent_only`, and never used `peak_width`. So the `--annotation-gtf` dry run always used chr1, the opposite peak was never required to be significant, and `find_peaks` got no width | The engine accepts both spellings, so API callers can keep using `highlight_chromosome` and `stringent_only`. `peak_width` is passed to `find_peaks` only when it is set |
 | Implement the likelihood-ratio test for the Poisson model | `Poisson` did not implement `StatModel`'s abstract `lrt()`, so every `--model Poisson` run raised `TypeError` | `lrt()` compares separate Poisson rates with one shared rate (chi-square, 1 df), the same way ZIP's does for its two parameters |
@@ -30,6 +33,11 @@ The `--model Poisson` and one-strand pairing fixes affect only runs that used to
 
 ### Testing
 
+- `tests/test_concat_result_frames.py` (3 tests) checks:
+  - integer columns stay integer when empty frames are mixed in (the empty frame is built the same way as in
+    `check_window_chromosome`);
+  - the values and row order equal those of a plain `pd.concat`;
+  - an all-empty input still returns an empty frame with the original columns.
 - `tests/test_trackb_fixes.py` (6 tests) checks:
   - each of the three options reaches the engine (or `find_peaks`);
   - Poisson's `lrt()`;
@@ -37,9 +45,9 @@ The `--model Poisson` and one-strand pairing fixes affect only runs that used to
   - pairs found on one strand only.
 - `tests/test_elbow.py` (2 tests) checks the elbow of a known curve, and that the result equals `np.cross` on 2-D
   vectors wherever NumPy still provides it.
-- Full suite: 12 passed.
-- chr22 test data (`tests/datasets`), default options, bigWig and BAM input: bidirectional, divergent and
-  unidirectional peaks are byte-identical to `main`.
+- Full suite: 15 passed.
+- chr22 test data (`tests/datasets`), default options, bigWig and BAM input, at 1 and 4 threads: bidirectional,
+  divergent and unidirectional peaks are byte-identical to `main`.
 - `--annotation-gtf --focused-chrom chr22` on the chr22 data, with `main` given the chromosome under the name its
   engine reads:
   - `main` and this branch both load 2917 annotated TSSs;
