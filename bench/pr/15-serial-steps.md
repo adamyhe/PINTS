@@ -70,7 +70,7 @@ The output hashes matched in every cell.
 | `T5_bam_ct_k562_grocap` | 64 | 7.6 s | 7.1 s | 0.929 | 1.7 → 1.2 s |
 
 Rerun at the branch heads on 2026-11-09 (`bench/run ab --a x12 --b x15 --fresh`: `pr/12-fewer-deps` at `789516e`
-against this branch at `7a18b38`), with another user's single-core jobs on the node's other cores, which makes both
+against this branch at `7a18b38`; both are the heads before the README commits below them, with the same code), with another user's single-core jobs on the node's other cores, which makes both
 sides slower: after / before 0.880–0.983 (H1 0.930 and 0.925, H3 0.934 and 0.880, T4 0.983 and 0.958, T5 0.953 and
 0.932 at 16 and 64 threads), filtering + pairing 8.0 → 6.0 s on H1 and 12.7 → 8.8 s on H3 at 64 threads, identical
 output in every cell.

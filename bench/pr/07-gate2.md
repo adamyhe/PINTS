@@ -1,6 +1,6 @@
 ## Opt-in `--fast-math`: compiled ZIP fit for the window tests
 
-Stacked on the serial-steps PR (`pr/15-serial-steps`); review only the last six commits.
+Stacked on the serial-steps PR (`pr/15-serial-steps`); review only the last seven commits.
 
 **Without `--fast-math` (the default), the output is byte-identical to the base branch and to `main`.**
 With `--fast-math`, p-values and padj change by a small relative amount, within a drift budget fixed before
@@ -67,8 +67,11 @@ inherit them.
 **Option.** `--fast-math` is a `pints_caller` option in the Testing group, next to the other opt-in options.
 `peak_calling` passes it to `stats_engine.configure_fast_math` on every run, before the pool starts, and the pool
 initializer passes it to the workers as it does the Track B options. The first five commits switch the kernels on
-with an environment variable, `PINTS_FAST_MATH=1`, read at import; the last commit replaces it with the option, so
+with an environment variable, `PINTS_FAST_MATH=1`, read at import; the sixth commit replaces it with the option, so
 the variable does nothing in the final branch.
+
+**README.** The last commit adds a paragraph on `--fast-math` after the option list: what it changes, the speed-up,
+that output is no longer byte-identical, and that it does nothing without Numba.
 
 ### Drift budget
 
@@ -125,7 +128,7 @@ All of the gain is in the phase-2 window tests (H1 at 16 threads: 22.7 → 5.3 s
 steps are unchanged. Outputs differ from the base, as expected with the flag on (see the drift report above).
 Without the flag, this branch's output is identical to `main`.
 
-**With the option, at the branch head.** `bench/run ab --a x07 --b x07fm --fresh`: this branch at `4d17c9d` without
+**With the option, at the branch head.** `bench/run ab --a x07 --b x07fm --fresh`: this branch at `4d17c9d` (the head before the README commit) without
 and with `--fast-math`, on 8 datasets, on cbsubscb19 on 2026-11-09, three alternating repetitions per cell, median
 wall time. Another user's single-core jobs ran on the node's other cores throughout, so both sides are slower than
 in the table above (H1 at 16 threads: 53.2 s here, 41.4 s there for the base) and the window tests slow most:
@@ -156,7 +159,7 @@ Peak PSS changes by −0.43 to +0.14 GB, and CPU time (summed over processes) fa
   - `_ler_mus_nb` matches the exact fits (bit for bit where it reports exact), and rejects negative values;
   - `_chi2_sf_df2` matches `chi2.sf(x, 2)` within 1e-12 relative from 1e-300 to 1400, and handles NaN and large x;
   - the kernel LRT matches `lrt` within 1e-9 relative, and falls back in debug mode and for float input.
-- Full suite at this branch's head (`4d17c9d`): 496 passed (base branch: 469), with numba 0.61.2 and pandas 2.3.1.
+- Full suite at `4d17c9d` (the head before the README commit): 496 passed (base branch: 469), with numba 0.61.2 and pandas 2.3.1.
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads, without
   `--fast-math`: the bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - On the old branch, the certified-LER commit left the Gate 2 output byte-identical to the commit before it on

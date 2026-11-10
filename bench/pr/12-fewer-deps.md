@@ -55,6 +55,7 @@ Extras: `main` has none, the base branch has `fast` (numba), and this PR adds `p
   gave an `ImportError` after the computation. Runs without `--debug` never import matplotlib. The `--debug`
   help text names the extra.
 - **Tests.** The run instructions in `tests/conftest.py` add statsmodels.
+- **README.** The Installation section now describes the two optional extras, `fast` and `plots`.
 
 ### Timing
 
@@ -64,7 +65,7 @@ to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/benc
 
 None of the changed code is on a hot path: the adjustment runs the same numpy operations as before, and statsmodels
 and matplotlib were already imported lazily. `bench/run ab --a x08 --b x12 --fresh` (`pr/08-trackb-flags` at
-`7da8a80` against this branch at `789516e`) on cbsubscb19 on 2026-11-09, three alternating repetitions per cell,
+`7da8a80` against this branch at `789516e`, the head before the README commit) on cbsubscb19 on 2026-11-09, three alternating repetitions per cell,
 median wall time, with another user's single-core jobs on the node's other cores. Identical output in every cell:
 
 | Dataset | 16 threads | 64 threads |

@@ -40,7 +40,7 @@ to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/benc
 [`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
 
 `bench/run ab --a ref --b x07 --reps 1`: `main` (`81b2dd9`) against the tip of the stack (`pr/07-gate2` at
-`4d17c9d`, default options, so without `--fast-math`), on cbsubscb19 (AMD EPYC 9554) on 2026-11-09, one run of
+`4d17c9d`, the head before the README commits, default options, so without `--fast-math`), on cbsubscb19 (AMD EPYC 9554) on 2026-11-09, one run of
 each per cell. The three output files are byte-identical in all 16 cells. Another user's single-core jobs ran on
 the node's other cores until 20:10, which covers the H rows and the start of the T rows. That load slows both sides,
 so these times are higher than on an idle node.
@@ -92,3 +92,7 @@ On 2026-11-09: PR 5's element-definition fix (stack above rebased); Gate 2's env
 `--fast-math`; commit messages on PR 6 and Gate 2 reworded; the `Co-authored-by: Biomni` trailers removed from every
 branch (trees unchanged; this rewrites PR 2 and the whole stack, and PR 12 again merges `pr/09`'s own commit).
 Old heads are kept as `refs/archive/2026-11-09/<branch>` and `refs/archive/2026-11-09-msg/<branch>`.
+
+Also on 2026-11-09: PR 12 and Gate 2 each gained a README commit (the optional extras; `--fast-math`), and PR 15
+and Gate 2 were rebased onto them. Code is unchanged; the heads measured above are kept as
+`refs/archive/2026-11-09-docs/<branch>`.
