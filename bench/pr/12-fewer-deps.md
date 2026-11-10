@@ -58,8 +58,20 @@ Extras: `main` has none, the base branch has `fast` (numba), and this PR adds `p
 
 ### Timing
 
-Not measured. None of the changed code is on a hot path: the adjustment runs the same numpy operations as before,
-and statsmodels and matplotlib were already imported lazily.
+None of the changed code is on a hot path: the adjustment runs the same numpy operations as before, and statsmodels
+and matplotlib were already imported lazily. `bench/run ab --a x08 --b x12 --fresh` (`pr/08-trackb-flags` at
+`7da8a80` against this branch at `789516e`) on cbsubscb19 on 2026-11-09, three alternating repetitions per cell,
+median wall time, with another user's single-core jobs on the node's other cores. Identical output in every cell:
+
+| Dataset | 16 threads | 64 threads |
+|---|---|---|
+| `H1_bam_reps_karpas422` | 55.7 → 56.3 s (1.012) | 31.0 → 30.8 s (0.993) |
+| `H3_bam_ct_gm12878_grocap` | 71.7 → 67.7 s (0.944) | 41.1 → 41.1 s (1.000) |
+| `T4_bam_reps_hct116` | 28.4 → 28.7 s (1.011) | 16.9 → 16.8 s (0.997) |
+| `T5_bam_ct_k562_grocap` | 11.6 → 11.8 s (1.021) | 8.1 → 8.0 s (0.988) |
+
+The H3 16-thread difference is in the window tests, whose code this PR does not change; across the six runs of that
+cell they took 35.9–40.9 s.
 
 ### Testing
 

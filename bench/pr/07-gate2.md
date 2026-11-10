@@ -121,6 +121,24 @@ All of the gain is in the phase-2 window tests (H1 at 16 threads: 22.7 → 5.3 s
 steps are unchanged. Outputs differ from the base, as expected with the flag on (see the drift report above).
 Without the flag, this branch's output is identical to `main`.
 
+**With the option, at the branch head.** `bench/run ab --a x07 --b x07fm --fresh`: this branch at `4d17c9d` without
+and with `--fast-math`, on 8 datasets, on cbsubscb19 on 2026-11-09, three alternating repetitions per cell, median
+wall time. Another user's single-core jobs ran on the node's other cores throughout, so both sides are slower than
+in the table above (H1 at 16 threads: 53.2 s here, 41.4 s there for the base) and the window tests slow most:
+
+| Dataset | 16 threads | 64 threads | Window tests, 16 threads |
+|---|---|---|---|
+| `H1_bam_reps_karpas422` | 53.2 → 28.3 s (0.531) | 28.6 → 19.5 s (0.683) | 31.8 → 6.6 s |
+| `H2_bw_caco2` | 57.0 → 28.0 s (0.492) | 30.4 → 20.0 s (0.658) | 36.4 → 7.5 s |
+| `H3_bam_ct_gm12878_grocap` | 65.7 → 38.4 s (0.584) | 36.3 → 26.4 s (0.728) | 38.8 → 11.7 s |
+| `H6_bam_reps_bw_a549r2_karpas` | 41.1 → 22.9 s (0.556) | 22.7 → 16.6 s (0.731) | 23.6 → 5.4 s |
+| `T2_bam_k562` | 6.6 → 5.1 s (0.765) | 5.2 → 4.8 s (0.923) | 2.4 → 0.8 s |
+| `T3_bw_gw_a549` | 27.9 → 15.4 s (0.553) | 16.0 → 12.2 s (0.762) | 15.0 → 3.2 s |
+| `T4_bam_reps_hct116` | 28.5 → 13.3 s (0.467) | 16.0 → 10.1 s (0.631) | 18.6 → 3.1 s |
+| `T5_bam_ct_k562_grocap` | 11.1 → 7.1 s (0.640) | 7.5 → 6.1 s (0.808) | 5.7 → 1.8 s |
+
+Peak PSS changes by −0.43 to +0.14 GB, and CPU time (summed over processes) falls by 45–70%.
+
 ### Testing
 
 - `tests/unit/test_gate2_fastmath.py` (new, 26 tests; skipped without numba):

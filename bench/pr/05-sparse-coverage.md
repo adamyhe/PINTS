@@ -133,8 +133,8 @@ evict it under the limit; on a machine without a limit it pushes out other cache
 | `T4_bam_reps_hct116` | 64 | 5.0 → 2.7 | – | 1.4 → 4.6 | 6.1 → 6.0 |
 
 Input parsing and control normalisation get faster everywhere. In these measurements element definition got
-slower at 64 threads: by 0.4–0.5 s on H1 and H3, and by about 3 s on T4. The last commit of this PR fixes that
-(the rows above predate it).
+slower at 64 threads: by 0.4–0.5 s on H1 and H3, and by about 3 s on T4. The last commit of this PR removes the T4
+slowdown (the rows above predate it); the 0.4–0.5 s on H1 and H3 remains (see the branch-head table below).
 
 **The last commit.** Every element-definition task received every sample's whole chromosome → coverage dict,
 although it reads one entry. There are two tasks per contig, so the pickled arguments grow with the square of the
@@ -152,6 +152,27 @@ alternating repetitions per cell, median wall time, identical output in every ce
 
 Wall time relative to `gate1` in the same session, at 64 threads, goes from 0.62 to 0.55 on H1 and from 0.63 to
 0.54 on H3; these totals include that bedtools-free commit.
+
+**At the branch heads.** `bench/run ab --a x04 --b x05 --fresh` (`pr/04-io` at `0333d58` against this branch at
+`769beba`, which includes the last commit and none of the next PR) on cbsubscb19 on 2026-11-09, three alternating
+repetitions per cell, median wall time, identical output in every cell. Another user's single-core jobs ran on the
+node's other cores throughout, which makes both sides slower than on an idle node (`pr/04-io` on H1 at 16 threads:
+58.1 s here, 46.2 s in the idle-node run above); the ratios compare runs made under the same load.
+
+| Dataset | Threads | Before | After | After / before | Peak PSS | Input parsing | Element definition |
+|---|---|---|---|---|---|---|---|
+| `H1_bam_reps_karpas422` | 16 | 58.1 s | 54.5 s | 0.939 | 4.90 → 3.30 GB | 6.8 → 3.1 s | 2.8 → 2.6 s |
+| `H1_bam_reps_karpas422` | 64 | 34.7 s | 31.7 s | 0.911 | 5.96 → 4.32 GB | 6.6 → 2.8 s | 1.7 → 2.2 s |
+| `H3_bam_ct_gm12878_grocap` | 16 | 78.0 s | 70.5 s | 0.904 | 5.17 → 3.94 GB | 4.1 → 3.3 s | 3.1 → 3.0 s |
+| `H3_bam_ct_gm12878_grocap` | 64 | 49.7 s | 42.2 s | 0.849 | 5.16 → 5.16 GB | 3.3 → 2.3 s | 1.9 → 2.3 s |
+| `T4_bam_reps_hct116` | 16 | 32.6 s | 30.4 s | 0.931 | 2.13 → 2.13 GB | 4.7 → 2.7 s | 1.6 → 1.3 s |
+| `T4_bam_reps_hct116` | 64 | 19.9 s | 17.2 s | 0.869 | 2.85 → 2.89 GB | 5.0 → 2.6 s | 1.7 → 1.5 s |
+| `T5_bam_ct_k562_grocap` | 16 | 13.6 s | 12.5 s | 0.923 | 1.19 → 1.27 GB | 1.7 → 1.4 s | 0.8 → 1.0 s |
+| `T5_bam_ct_k562_grocap` | 64 | 9.4 s | 8.6 s | 0.913 | 1.67 → 1.84 GB | 2.0 → 1.5 s | 0.8 → 1.2 s |
+
+On H3, control parsing and normalisation also falls from 8.0 to 1.0 s (16 threads) and 7.7 to 1.1 s (64 threads).
+Element definition is still 0.4–0.5 s slower at 64 threads on H1, H3 and T5 (not traced further); it is faster on
+T4.
 
 ### Testing
 

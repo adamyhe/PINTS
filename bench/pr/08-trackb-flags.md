@@ -51,6 +51,20 @@ Suggested defaults, for the maintainers to decide:
 - `independent_filtering(..., strict_independent_filtering=...)` and `merge_opposite_peaks(..., stringent_pairs_padj=...)`
   take the other two as keyword arguments. `--stringent-pairs-padj` implies `--stringent-pairs-only`.
 
+### Timing
+
+With no flags set, the code paths are the previous ones. `bench/run ab --a x06 --b x08 --fresh`
+(`pr/06-bedtools-free` at `efe3a3f` against this branch at `7da8a80`) on cbsubscb19 (AMD EPYC 9554) on 2026-11-09,
+three alternating repetitions per cell, median wall time, with another user's single-core jobs on the node's other
+cores. Identical output in every cell:
+
+| Dataset | 16 threads | 64 threads |
+|---|---|---|
+| `H1_bam_reps_karpas422` | 53.7 → 53.6 s (0.998) | 30.9 → 30.9 s (1.000) |
+| `H3_bam_ct_gm12878_grocap` | 72.4 → 68.9 s (0.952) | 41.2 → 41.3 s (1.003) |
+| `T4_bam_reps_hct116` | 29.6 → 29.5 s (0.999) | 16.8 → 16.9 s (1.007) |
+| `T5_bam_ct_k562_grocap` | 11.7 → 11.8 s (1.009) | 7.9 → 8.2 s (1.030) |
+
 ### Testing
 
 - `tests/test_trackb_flags.py` (11 tests): CLI defaults and flags; workers receive the settings; IQR fences; LER

@@ -33,6 +33,37 @@ Branch names keep the numbers they had while being built. The "Upstream" column 
 
 Gate 2 comes last because it is the most likely to be debated, and nothing else depends on it.
 
+## Stack tip against `main`
+
+`bench/run ab --a ref --b x07 --reps 1`: `main` (`81b2dd9`) against the tip of the stack (`pr/07-gate2` at
+`4d17c9d`, default options, so without `--fast-math`), on cbsubscb19 (AMD EPYC 9554) on 2026-11-09, one run of
+each per cell. The three output files are byte-identical in all 16 cells. Another user's single-core jobs ran on
+the node's other cores until 20:10, which covers the H rows and the start of the T rows. That load slows both sides,
+so these times are higher than on an idle node.
+
+| Dataset | Threads | `main` | Tip | Tip / `main` | Peak PSS |
+|---|---|---|---|---|---|
+| `H1_bam_reps_karpas422` | 16 | 634.9 s | 52.4 s | 0.083 | 12.42 → 3.46 GB |
+| `H1_bam_reps_karpas422` | 64 | 571.9 s | 28.2 s | 0.049 | 12.41 → 4.39 GB |
+| `H2_bw_caco2` | 16 | 585.3 s | 55.8 s | 0.095 | 6.03 → 3.38 GB |
+| `H2_bw_caco2` | 64 | 666.3 s | 28.1 s | 0.042 | 7.09 → 4.40 GB |
+| `H3_bam_ct_gm12878_grocap` | 16 | 723.3 s | 60.5 s | 0.084 | 12.57 → 4.00 GB |
+| `H3_bam_ct_gm12878_grocap` | 64 | 726.6 s | 33.9 s | 0.047 | 12.68 → 5.12 GB |
+| `H6_bam_reps_bw_a549r2_karpas` | 16 | 557.3 s | 40.0 s | 0.072 | 12.22 → 2.93 GB |
+| `H6_bam_reps_bw_a549r2_karpas` | 64 | 451.2 s | 21.1 s | 0.047 | 12.21 → 4.34 GB |
+| `T2_bam_k562` (chr1, 21, X) | 16 | 285.9 s | 6.4 s | 0.022 | 6.83 → 1.04 GB |
+| `T2_bam_k562` (chr1, 21, X) | 64 | 290.0 s | 5.0 s | 0.017 | 6.84 → 1.43 GB |
+| `T3_bw_gw_a549` | 16 | 382.7 s | 25.4 s | 0.066 | 5.68 → 2.34 GB |
+| `T3_bw_gw_a549` | 64 | 385.6 s | 14.5 s | 0.038 | 6.96 → 2.98 GB |
+| `T4_bam_reps_hct116` (chr17–22) | 16 | 793.7 s | 22.1 s | 0.028 | 7.48 → 2.33 GB |
+| `T4_bam_reps_hct116` (chr17–22) | 64 | 788.3 s | 14.3 s | 0.018 | 7.48 → 2.82 GB |
+| `T5_bam_ct_k562_grocap` (chr19–22) | 16 | 390.5 s | 9.2 s | 0.024 | 6.91 → 1.23 GB |
+| `T5_bam_ct_k562_grocap` (chr19–22) | 64 | 389.0 s | 6.7 s | 0.017 | 6.91 → 1.99 GB |
+
+Unmarked datasets are whole-genome. `main` gains little from more threads, so the speed-up is 10.5–15× at 16 threads
+and 20–27× at 64 threads on the whole-genome sets (36–58× on the partial T sets). Peak PSS falls by 38–85%. With `--fast-math`, the tip is a further 0.47–0.77× at 16 threads and
+0.63–0.92× at 64 threads (`bench/pr/07-gate2.md`).
+
 ## History
 
 The restructure on 2026-11-04 made these changes:
