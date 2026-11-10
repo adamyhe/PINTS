@@ -72,7 +72,7 @@ the variable does nothing in the final branch.
 
 ### Drift budget
 
-Fixed before testing (Biomni's pre-registered budget; `compare_pair` in `bench/report.py`). Fast and exact runs of
+Fixed before testing (`compare_pair` in `bench/report.py`). Fast and exact runs of
 the same dataset and config must have:
 - identical candidate coordinates in the per-strand candidate tables;
 - p and padj within 1e-6 relative;
@@ -152,7 +152,7 @@ Peak PSS changes by −0.43 to +0.14 GB, and CPU time (summed over processes) fa
   - `_ler_mus_nb` matches the exact fits (bit for bit where it reports exact), and rejects negative values;
   - `_chi2_sf_df2` matches `chi2.sf(x, 2)` within 1e-12 relative from 1e-300 to 1400, and handles NaN and large x;
   - the kernel LRT matches `lrt` within 1e-9 relative, and falls back in debug mode and for float input.
-- Full suite: 495 passed (base branch: 469), with numba 0.61.2 and pandas 2.3.1.
+- Full suite at this branch's head (`4d17c9d`): 496 passed (base branch: 469), with numba 0.61.2 and pandas 2.3.1.
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads, without
   `--fast-math`: the bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - On the old branch, the certified-LER commit left the Gate 2 output byte-identical to the commit before it on

@@ -74,7 +74,10 @@ The restructure on 2026-11-04 made these changes:
 - merged `pr/10-normalizer-cli` and `pr/11-script-fixes` into `pr/10-script-fixes`;
 - dropped `pr/00-setup-one-per-line` as a separate PR. Its commit is in A3 and in the stack.
 
-Old heads are kept as local refs `refs/archive/2026-11-04/<branch>` (not tags: versioneer would read them).
+Old heads are kept as refs `refs/archive/2026-11-04/<branch>` (not tags: versioneer would read them). All
+`refs/archive/*` refs are pushed to the fork (`git fetch origin 'refs/archive/*:refs/archive/*'`), so every commit
+a description cites can be opened there; `refs/archive/cited/<sha>` holds benchmarked commits that no branch
+contains.
 
 On 2026-11-08 the `.npy` cache was dropped (last commit of PR 5; the stack above it was rebased), and `pr/13` gained the pandas 3 test fix.
 Also on 2026-11-08: PR 1 (`pr/01-empty-frame-dtype`) was folded into PR 2, the duplicated pandas 4 commit in PR 4 was

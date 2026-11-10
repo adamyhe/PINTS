@@ -75,7 +75,7 @@ Outputs are identical. Most of the gain is in input parsing and in filtering, pa
 - `tests/diff/test_differential_bedtools_free.py`: borrowing elements from other replicates, boundary extension
   with a promoter BED (plain and gzipped) and `pints_counter`'s regions (`--max-dist` 0, 1 and 250) give the same
   files as the reference implementation, which uses pybedtools.
-- Full suite at `f7615e3` (the same tree as this branch's head, `6884e06`): 423 passed.
+- Full suite at this branch's head (`efe3a3f`): 423 passed.
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads: the
   bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - Benchmark equivalence of `ca581dd`: all 78 runs (19 datasets; default, `--disable-small` and sensitive
