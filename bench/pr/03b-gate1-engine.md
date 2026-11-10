@@ -85,7 +85,11 @@ command line was ignored there. It now uses `_stringent_only(kwargs)`, like the 
 
 ### Timing
 
-Measured with the benchmark kit (`bench/`) on cbsubscb19 (AMD EPYC 9554, `performance` governor, 64-CPU allocation,
+The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
+to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
+[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
+
+Measured on cbsubscb19 (AMD EPYC 9554, `performance` governor, 64-CPU allocation,
 node-local disk). The measured commit is `f8110c7` (variant `gate1`), the head of the Gate 1 branch before it was split into
 B2 and B3, so the numbers cover both PRs. Its `pints/` code equals this branch's except for:
 - the bugfix PR's changes, which it does not have: the `get_elbow` arithmetic, option passing, `Poisson.lrt`,

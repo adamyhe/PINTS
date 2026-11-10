@@ -35,6 +35,10 @@ Gate 2 comes last because it is the most likely to be debated, and nothing else 
 
 ## Stack tip against `main`
 
+The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
+to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
+[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
+
 `bench/run ab --a ref --b x07 --reps 1`: `main` (`81b2dd9`) against the tip of the stack (`pr/07-gate2` at
 `4d17c9d`, default options, so without `--fast-math`), on cbsubscb19 (AMD EPYC 9554) on 2026-11-09, one run of
 each per cell. The three output files are byte-identical in all 16 cells. Another user's single-core jobs ran on
@@ -62,7 +66,7 @@ so these times are higher than on an idle node.
 
 Unmarked datasets are whole-genome. `main` gains little from more threads, so the speed-up is 10.5–15× at 16 threads
 and 20–27× at 64 threads on the whole-genome sets (36–58× on the partial T sets). Peak PSS falls by 38–85%. With `--fast-math`, the tip is a further 0.47–0.77× at 16 threads and
-0.63–0.92× at 64 threads (`bench/pr/07-gate2.md`).
+0.63–0.92× at 64 threads ([`bench/pr/07-gate2.md`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/pr/07-gate2.md)).
 
 ## History
 

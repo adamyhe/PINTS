@@ -58,6 +58,10 @@ Extras: `main` has none, the base branch has `fast` (numba), and this PR adds `p
 
 ### Timing
 
+The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
+to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
+[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
+
 None of the changed code is on a hot path: the adjustment runs the same numpy operations as before, and statsmodels
 and matplotlib were already imported lazily. `bench/run ab --a x08 --b x12 --fresh` (`pr/08-trackb-flags` at
 `7da8a80` against this branch at `789516e`) on cbsubscb19 on 2026-11-09, three alternating repetitions per cell,

@@ -53,6 +53,10 @@ Suggested defaults, for the maintainers to decide:
 
 ### Timing
 
+The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
+to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
+[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
+
 With no flags set, the code paths are the previous ones. `bench/run ab --a x06 --b x08 --fresh`
 (`pr/06-bedtools-free` at `efe3a3f` against this branch at `7da8a80`) on cbsubscb19 (AMD EPYC 9554) on 2026-11-09,
 three alternating repetitions per cell, median wall time, with another user's single-core jobs on the node's other

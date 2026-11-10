@@ -72,7 +72,11 @@ the variable does nothing in the final branch.
 
 ### Drift budget
 
-Fixed before testing (`compare_pair` in `bench/report.py`). Fast and exact runs of
+The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
+to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
+[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
+
+Fixed before testing (`compare_pair` in [`bench/report.py`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/report.py)). Fast and exact runs of
 the same dataset and config must have:
 - identical candidate coordinates in the per-strand candidate tables;
 - p and padj within 1e-6 relative;

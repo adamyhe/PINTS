@@ -47,6 +47,10 @@ had finished.
 
 ### Timing
 
+The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
+to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
+[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
+
 `bench/run ab --a deps --b post --fresh` measures the base branch (`pr/12-fewer-deps`) against this branch:
 - on cbsubscb19 (AMD EPYC 9554);
 - with three alternating repetitions per cell, both variants in one session;

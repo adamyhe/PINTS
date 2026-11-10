@@ -12,7 +12,7 @@ input, each replicate and their merge, control and normalised sample. In the pro
 branch's code, see Timing), an H1 (two BAM replicates) or H3 (BAM with control) run writes 1176 dumps, 36.7–36.8 GB.
 
 More than 99.9% of those bases are zero. Measured on the benchmark's inputs, 0.02–0.07% of the bases of a strand
-carry signal (`bench/design/sparse-coverage.md`, section 2). Writing the dumps took most of the input-parsing
+carry signal ([`bench/design/sparse-coverage.md`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/design/sparse-coverage.md), section 2). Writing the dumps took most of the input-parsing
 time at 64 threads, and all of it passes through the page cache, which cgroup v2 charges to the job.
 
 ### What changes
@@ -67,6 +67,10 @@ This is the last commit (`e4c1655`), so it can be dropped on its own if the main
 Keeping it would mean loading old dumps into tracks.
 
 ### Timing and memory
+
+The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
+to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
+[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
 
 `bench/run` paired suite on cbsubscb19 (AMD EPYC 9554, 64 CPUs), in two sessions on 2026-10-31. In each,
 `gate1` (`f8110c7`) and one `io` commit ran alternately: three pairs at 16 and 64 threads, one at 1 thread;
