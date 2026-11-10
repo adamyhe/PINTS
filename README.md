@@ -161,6 +161,13 @@ To see where a run spends its time, set the environment variable `PINTS_PHASE_TI
 wall time of each stage (input parsing, element definition, the two testing phases, filtering and pairing) to
 stderr as `[phase]` lines, each measured from the end of the previous one. It does not change any output.
 
+`--fast-math` fits each tested window's background with compiled kernels that are allowed to differ from the default
+fit in the last digits. With the `fast` extra installed, it makes a genome-wide run about 1.7–2× faster at 16 threads
+and 1.3–1.5× faster at 64. The price is that the output is no longer byte-identical to a run without it: p-values and
+adjusted p-values change by small relative amounts (up to about 1e-6 in our tests), which can change a few calls near
+the FDR cutoff, and peaks whose p-values are tied can be paired differently. Without Numba, the option logs a warning
+and has no effect. It is off by default.
+
 ## Case Study: Identify Differentially Expressed TREs
 In this section, we try to identify differentially expressed TREs (promoters and enhancers) from two conditions.
 
