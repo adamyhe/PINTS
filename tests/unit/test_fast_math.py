@@ -1,4 +1,4 @@
-"""Gate 2 (--fast-math): compiled ZIP EM agrees with the exact (Gate 1) fit within the drift budget,
+"""--fast-math: compiled ZIP EM agrees with the exact fit within the drift budget,
 and LER decisions made from it are certified to equal the exact ones."""
 import numpy as np
 import pytest
@@ -64,7 +64,7 @@ def test_fast_fit_falls_back_to_exact(monkeypatch, model, window):
     assert not called
 
 
-# ------------------------------------------------------------------ certified LER: decisions equal Gate 1's
+# ------------------------------------------------------------------ certified LER: decisions equal the exact path's
 def _ler_case(rng):
     """Sparse coverage with short sub-peaks of small integer counts, so tied fits (the hard case) are common."""
     L = int(rng.integers(3000, 30000))
