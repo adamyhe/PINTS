@@ -96,3 +96,12 @@ Old heads are kept as `refs/archive/2026-11-09/<branch>` and `refs/archive/2026-
 Also on 2026-11-09: PR 12 and Gate 2 each gained a README commit (the optional extras; `--fast-math`), and PR 15
 and Gate 2 were rebased onto them. Code is unchanged; the heads measured above are kept as
 `refs/archive/2026-11-09-docs/<branch>`.
+
+On 2026-11-12, for upstream review: commit messages lost internal labels ("Gate1:", "Gate 2:", "Track B", audit
+items); test files were renamed (`test_trackb_fixes.py` → `test_bugfixes.py`, `test_differential_gate1.py` →
+`test_differential_parallel.py`, `test_trackb_flags.py` → `test_opt_in_fixes.py`, `test_gate2_fastmath.py` →
+`test_fast_math.py`) and the matching code comments edited; B3's `PINTS_PHASE_TIMING` clock now starts with
+`peak_calling` (the first line used to read 0.00 s); B10 gained a commit naming its code after `--fast-math` and
+fixing the `fit_fast_math` docstring. Every branch except A2 and A3 was rewritten; A4 only in a commit message.
+All descriptions were rewritten from four outside reviews, and `bench/pr/OVERVIEW.md` was added for Li. Old heads
+are kept as `refs/archive/2026-11-12/<branch>`.

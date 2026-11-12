@@ -1,10 +1,11 @@
 ## Fix `pints_normalizer`, `pints_visualizer`, `pints_counter`, `pints_boundary_extender` and `parse_gtf`
 
-Against `main`. Two commits: the first makes `pints_normalizer` run, the second fixes the other scripts. Review
-them commit by commit.
+**`pints_caller`'s output is byte-identical to the current release.** The default output of `pints_visualizer`,
+`pints_counter` and `pints_boundary_extender` is unchanged except where listed below.
+`pints_normalizer` previously could not run at all.
 
-**`pints_caller`'s output is byte-identical to the current release.** The other scripts write the same files as
-before, except where a fix makes an option take effect or moves an output (listed below).
+Two commits: the first makes `pints_normalizer` run, the second fixes the other scripts. Please review them one by
+one. The PR adds no tests; the checks under Testing were run by hand.
 
 ### `pints_normalizer` (first commit)
 
@@ -14,7 +15,7 @@ The script could not run at all: it read `args.output_prefix` (the option is `--
 | Problem | Fix |
 |---|---|
 | RPM passed `output_dir=` instead of `output_pref=`, and converted each BAM twice | Each BAM is converted once |
-| Spike-in joined the output directory with the full BAM path, so an absolute path wrote the bigWigs next to the BAM | Both methods now write `<output-dir>/<bam name>_{pl,mn}.bw` |
+| Spike-in joined the output directory with the full BAM path, so an absolute path wrote the bigWigs next to the BAM | Both methods now write `<output-dir>/<bam name>_{pl,mn}.bw`, where `<bam name>` is the BAM file name without its extension (`os.path.splitext`) |
 | Spike-in dropped `--reverse-complement` and `--mapq-threshold` | Both methods call `pints_visualizer`'s `bam_to_bigwig` with every option forwarded |
 | No default for `--output-dir` | It defaults to the current directory. A missing directory stops the script with a message |
 | The log file name used minutes (`%M`) where the month (`%m`) was meant | `%m` |
@@ -23,7 +24,7 @@ The script could not run at all: it read `args.output_prefix` (the option is `--
 
 | Script | Problem | Fix |
 |---|---|---|
-| `pints_visualizer` | Without `-o` it crashed with `TypeError` (`None + "_pl.bw"`) | The output defaults to the BAM file name without `.bam`, in the current directory |
+| `pints_visualizer` | Without `-o` it crashed with `TypeError` (`None + "_pl.bw"`) | The output defaults to the BAM file name without its extension (`os.path.splitext` strips whatever the last extension is, not only `.bam`), in the current directory |
 | `pints_visualizer` | The log file name used minutes where the month was meant | `%m` |
 | `pints_counter` | `--max-dist` was parsed but never passed on, so it had no effect | It is passed to `main` |
 | `pints_boundary_extender` | `--save-to` was ignored: the extended elements and the temporary coverage files were written next to the peak calls | They go to `--save-to` when it is given. Without it, they stay next to the peak calls as before |
@@ -46,6 +47,8 @@ The script could not run at all: it read `args.output_prefix` (the option is `--
 
 ### Testing
 
+All checks below except the test suite were run by hand.
+
 - `pints_normalizer`, chr22 BAMs (`tests/datasets/chr22.bam`, `input.chr22.bam`), `-e PROcap`:
   - `main` fails with `AttributeError: 'Namespace' object has no attribute 'output_prefix'`;
   - `-m RPM`: each bigWig has the same chromosomes and intervals as `pints_visualizer -c` on the same BAM;
@@ -67,7 +70,7 @@ The script could not run at all: it read `args.output_prefix` (the option is `--
   - `pints_sample_qc` with the GTF in a read-only folder: `main` fails with `PermissionError`; this branch
     completes;
   - `parse_gtf` ignores a cache older than the GTF and uses a fresh one.
-- `main`'s test suite passes on this branch (4 passed).
+- `main`'s existing test suite passes on this branch (4 passed); the PR adds no tests.
 - `pints_caller` on chr22, bigWig and BAM input at 1 and 4 threads: peaks byte-identical to `main`. With
   `--annotation-gtf --focused-chrom chr22` (both sides given the chromosome under the name `main`'s engine reads),
   also byte-identical.

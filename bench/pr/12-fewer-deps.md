@@ -1,12 +1,19 @@
 ## Fewer dependencies: drop statsmodels and requests, make matplotlib optional
 
-Stacked on the opt-in fixes PR (`pr/08-trackb-flags`); review only the last three commits.
-
-The branch also contains a merge of `pr/09-drop-biopython` (group A), because this PR changes the same
-`install_requires` lines. That merge drops out once PR 9 is merged upstream and the stack is rebased onto `main`.
+Stacked on B7 (`pr/08-trackb-flags`); review only the last four commits (statsmodels, matplotlib, requests,
+README). Before them, the branch merges A2 (`pr/09-drop-biopython`), because this PR changes the same
+`install_requires` lines; that merge drops out once A2 is in `main` and this branch is rebased.
 
 **The output is byte-identical to the base branch and to `main`.** The p-value adjustment repeats statsmodels'
 operations, so the adjusted p-values are bit for bit the same.
+
+### What changes for users
+
+- `pip install pyPINTS` no longer installs statsmodels, requests or matplotlib (or the packages they pull in).
+- matplotlib moves to a new `plots` extra: `pip install 'pyPINTS[plots]'`. Without it, `pints_caller --debug` stops
+  before any work with "--debug saves diagnostic plots, which need matplotlib: pip install 'pyPINTS[plots]'".
+  Before, a missing matplotlib gave an `ImportError` after the computation. Runs without `--debug` are unaffected.
+- The README's Installation section describes the two optional extras, `fast` and `plots`.
 
 ### Why
 
@@ -14,7 +21,7 @@ operations, so the adjusted p-values are bit for bit the same.
 
 | Package | What PINTS used it for | What it brings with it |
 |---|---|---|
-| statsmodels | `multipletests` in independent filtering | patsy, packaging; version 0.14.6 requires numpy>=1.22.3,<3, scipy>=1.8 and pandas>=1.4, not 2.1.0 |
+| statsmodels | `multipletests` in independent filtering | patsy, packaging; version 0.14.6 requires numpy>=1.22.3,<3, scipy>=1.8,!=1.9.2 and pandas>=1.4,!=2.1.0 |
 | requests | reading PyPI's version of pyPINTS in `check_update` | urllib3, idna, charset-normalizer, certifi |
 | matplotlib | the `--debug` diagnostic plots only | contourpy, cycler, fonttools, kiwisolver, pillow, pyparsing |
 
@@ -32,41 +39,41 @@ environment. After this PR, all the remaining dependencies are packages PINTS us
 | pyBigWig | pyBigWig | pyBigWig |
 | requests | requests | |
 | statsmodels>=0.12.1 | statsmodels>=0.12.1 | |
-| biopython | biopython | (dropped by PR 9) |
+| biopython | biopython | (dropped by A2) |
 | matplotlib | matplotlib | extra `plots` |
-| pybedtools>=0.8.1 | (dropped by PR 6) | |
+| pybedtools>=0.8.1 | (dropped by B6) | |
 
 Extras: `main` has none, the base branch has `fast` (numba), and this PR adds `plots` (matplotlib).
 
 ### What changes
 
-- **statsmodels.** `stats_engine.adjust_pvalues` replaces `multipletests(...)[1]` in `independent_filtering`. It
-  repeats statsmodels' operations for the four methods `pints_caller` offers: `fdr_bh`, `bonferroni`, `fdr_tsbh`
-  and `fdr_tsbky` (the two-stage methods as `fdrcorrection_twostage` with one iteration). For no p-values it raises
-  `ZeroDivisionError`, as statsmodels does. `independent_filtering` already catches that error and falls back to
-  Bonferroni. An unknown method raises `ValueError`. statsmodels is now needed only by the test that compares
-  against it.
-- **requests.** `check_update` reads `https://pypi.org/pypi/pyPINTS/json` with `urllib.request`, with the same
-  10 s timeout and up to three retries, waiting 0, 6 and 12 s. Any failure is still logged, not raised. The
-  epigenomic annotation download already used urllib.
-- **matplotlib.** It moves to the `plots` extra: `pip install 'pyPINTS[plots]'`. It was already imported only
-  inside the `--debug` branches. Without it, `pints_caller --debug` now stops before any work, with the message
-  "--debug saves diagnostic plots, which need matplotlib: pip install 'pyPINTS[plots]'". Before, a missing matplotlib
-  gave an `ImportError` after the computation. Runs without `--debug` never import matplotlib. The `--debug`
-  help text names the extra.
-- **Tests.** The run instructions in `tests/conftest.py` add statsmodels.
-- **README.** The Installation section now describes the two optional extras, `fast` and `plots`.
+- **statsmodels** (`1bf51e8`). `stats_engine.adjust_pvalues` replaces `multipletests(...)[1]` in
+  `independent_filtering`. It repeats statsmodels' operations for the four methods `pints_caller` offers: `fdr_bh`,
+  `bonferroni`, `fdr_tsbh` and `fdr_tsbky` (the two-stage methods as `fdrcorrection_twostage` with one iteration).
+  For no p-values it raises `ZeroDivisionError`, as statsmodels does. `independent_filtering` already catches that
+  error and falls back to Bonferroni. An unknown method raises `ValueError`. statsmodels is now needed only by the
+  test that compares against it; the run instructions in `tests/conftest.py` add it.
+- **matplotlib** (`fd621e0`). It moves to the `plots` extra. It was already imported only inside the `--debug`
+  branches; `peak_calling` now checks for it at the start when `--debug` is given. The `--debug` help text names the
+  extra.
+- **requests** (`9483cd0`). `check_update` reads `https://pypi.org/pypi/pyPINTS/json` with `urllib.request`, with
+  the same 10 s timeout and up to three retries, waiting 0, 6 and 12 s. Any failure is still logged, not raised.
+  The epigenomic annotation download already used urllib.
+- **README** (`244ec0b`). The Installation section describes the `fast` and `plots` extras.
 
 ### Timing
 
-The benchmark kit is [`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch: the variant names below are pinned
-to commits in [`bench/variants.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/variants.json), and the datasets are described in
-[`bench/datasets.json`](https://github.com/adamyhe/PINTS/blob/bench/external/bench/datasets.json).
+Run time is unchanged (0.944–1.021 of the base on two genome-wide and two partial datasets, at 16 and 64 threads):
+none of the changed code is on a hot path. The benchmark kit is
+[`bench/`](https://github.com/adamyhe/PINTS/tree/bench/external/bench) on the fork's `bench/external` branch.
 
-None of the changed code is on a hot path: the adjustment runs the same numpy operations as before, and statsmodels
-and matplotlib were already imported lazily. `bench/run ab --a x08 --b x12 --fresh` (`pr/08-trackb-flags` at
-`7da8a80` against this branch at `789516e`, the head before the README commit) on cbsubscb19 on 2026-11-09, three alternating repetitions per cell,
-median wall time, with another user's single-core jobs on the node's other cores. Identical output in every cell:
+<details><summary>Per-dataset timings</summary>
+
+`bench/variants.json` in the kit pins each measured variant to a commit, and `bench/datasets.json` describes the
+datasets. Measured on 2026-11-09 at `7da8a80` (base) and `789516e` (this branch before the README commit), earlier
+versions of `2e7d7cf` and `9483cd0` with the same code apart from comments and test names, on an AMD EPYC 9554
+server: three alternating repetitions per cell, median wall time, with another user's single-core jobs on the
+node's other cores. PINTS runs on one thread unless `--thread` is given. Identical output in every cell:
 
 | Dataset | 16 threads | 64 threads |
 |---|---|---|
@@ -77,6 +84,8 @@ median wall time, with another user's single-core jobs on the node's other cores
 
 The H3 16-thread difference is in the window tests, whose code this PR does not change; across the six runs of that
 cell they took 35.9–40.9 s.
+
+</details>
 
 ### Testing
 
@@ -89,9 +98,9 @@ cell they took 35.9–40.9 s.
   - and checks that both raise `ZeroDivisionError` for no p-values.
 - `tests/unit/test_check_update.py` (new): the URL and timeout, the waits between retries, the "latest version"
   and "out-dated" messages, and that being offline only logs an error.
-- `tests/unit/test_debug_needs_matplotlib.py` (new): with matplotlib hidden, `peak_calling(..., output_diagnostics=True)`
-  exits before doing any work, and the error names `pyPINTS[plots]`.
-- Full suite: 460 passed (base branch: 438), with statsmodels 0.14.6, numba 0.61.2 and pandas 2.3.1.
+- `tests/unit/test_debug_needs_matplotlib.py` (new): with matplotlib hidden,
+  `peak_calling(..., output_diagnostics=True)` exits before doing any work, and the error names `pyPINTS[plots]`.
+- Full suite: 460 passed, with statsmodels 0.14.6, numba 0.61.2 and pandas 2.3.1.
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads: the
   bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - Clean install: `pip install` of this branch into a fresh virtual environment (Python 3.12) installs only numpy,

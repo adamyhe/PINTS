@@ -1,10 +1,20 @@
 ## Exact fast paths for the ZIP fit, the small-peak p-values and independent filtering
 
-Stacked on the test-harness PR (`pr/03-test-harness`); review only the last five commits.
+Stacked on B1 (`pr/03-test-harness`); review only the last five commits.
 
 **The output is byte-identical to the base branch.** Each fast path performs the same floating-point operations as
 the code it replaces, in the same order, so the functions return the same values bit for bit, not only the same peak
 files. For inputs where that cannot be guaranteed, the original code runs.
+
+### What changes for users
+
+- No new command-line options, and the output does not change.
+- A new optional extra, `pip install 'pyPINTS[fast]'`, installs Numba (`numba>=0.56`). Without it, `ZIP.fit`
+  runs the original EM loop and the output is the same; the other changes below do not need Numba. The run time
+  without Numba was not measured.
+- With Numba installed, the kernels are compiled the first time a window is fitted and cached on disk
+  (`@njit(cache=True)`), so later runs load them instead of compiling again. This PR adds no warm-up, so each worker
+  process compiles or loads them on its first fit; B3 (parallel engine) compiles them once before its pool forks.
 
 ### Why
 
@@ -21,8 +31,9 @@ Stratified filtering has two similar costs: the small-peak p-values are computed
 
 - **ZIP log-likelihood** (`_poisson_pmf`). `ZIP._log_likelihood_core` calls a copy of the arithmetic inside
   `poisson.pmf` (`exp(xlogy(k, mu) - gammaln(k + 1) - mu)`, clipped to [0, 1], with `k` promoted to int64 as SciPy
-  does), without SciPy's generic wrapper. Inputs outside that contract (non-integer or negative `k`, non-scalar
-  `mu`, empty input) go to `poisson.pmf` as before.
+  does), without SciPy's generic wrapper. A `k` that is not a 1-D integer array, a non-scalar `mu`, an empty `k`
+  and a negative count go to `poisson.pmf` as before. A scalar `mu` that is negative or NaN returns an array of NaN
+  of the length of `k` directly, without calling SciPy.
 - **ZIP EM** (`ZIP._fit_fast`). It runs the same EM iterations as `ZIP.fit` without building the `hat_z` and
   indicator arrays:
   - `hat_z` is one value on the zero positions and 0 elsewhere, so its sum is a masked sum. `_masked_sum`
@@ -33,7 +44,7 @@ Stratified filtering has two similar costs: the small-peak p-values are computed
   - The fast path returns `None`, and `fit` then runs the original loop from the start, if the window is not a
     1-D integer array, has a negative count or a non-finite sum, or if an iteration leaves the range in which the
     two forms are equal (`hat_z` outside [0, 1], `lamb` < 0). It is not used with `debug=True`.
-- **Numba is optional.** `setup.py` gains an extra, `pip install pyPINTS[fast]` (`numba>=0.56`). Without Numba,
+- **Numba is optional.** `setup.py` gains an extra, `pip install 'pyPINTS[fast]'` (`numba>=0.56`). Without Numba,
   `import numba` fails, `_HAS_NUMBA` is false and `ZIP.fit` runs the original loop. The output is the same either
   way; only the speed differs. Numba is kept optional because its wheels often lag new Python releases and it adds
   llvmlite to the install. The kernel is compiled on first use and cached (`cache=True`).
@@ -47,8 +58,8 @@ Stratified filtering has two similar costs: the small-peak p-values are computed
 
 ### Timing
 
-Against `pr/03-test-harness` (whose `pints/` is the same as PR 2's), on cbsubscb19 (AMD EPYC 9554) at 16 threads,
-three alternating runs each, median wall time, numba installed:
+Against B1 (`pr/03-test-harness`; no `pints/` changes relative to A1), on an AMD EPYC 9554 server at 16 threads,
+three alternating runs each, median wall time, Numba installed:
 
 | Dataset | Wall time |
 |---|---|
@@ -57,8 +68,8 @@ three alternating runs each, median wall time, numba installed:
 | `T5_bam_ct_k562_grocap` | 394.6 → 292.2 s (0.741) |
 
 Outputs are identical. 64 threads were not measured: the base's wall time hardly changes between 16 and 64 threads
-(see B3's table). Most of the remaining time goes to work that the next PR (B3) parallelises; B3 on its own takes
-these runs to 0.05–0.19 of this PR's time.
+(see B3 (parallel engine)). Most of the remaining time goes to work that B3 (parallel engine) parallelises; B3 on
+its own takes these runs to 0.05–0.19 of this PR's time.
 
 ### Testing
 
