@@ -2,11 +2,13 @@
 
 This PR adds tests only: a frozen copy of upstream PINTS (`tests/reference/pints_ref`) and characterisation tests of
 the current engine. Nothing in `pints/` changes, so the output is unchanged and nothing changes for users. Stacked
-on A1 (`pr/02-trackb-fixes`); review only the last commit (`cf1ec8b`). See the stacking note below for the other two.
+on #30 (`pr/02-trackb-fixes`); review only the last commit (`cf1ec8b`). A PR from a fork can only target `main`, so
+GitHub also lists #30's commits, #31's setup.py commit and its merge (see the stacking note below). This PR is a
+draft until #30 merges; the branch will then be rebased onto `main`, and only the harness commit will remain.
 
 ### Why
 
-The performance PRs that follow (B2–B10 in the overview) change how PINTS computes its results. With default
+The performance PRs that follow (B2–B10 in the overview on #30) change how PINTS computes its results. With default
 options, each claims output byte-identical to the current release. That has to be testable on more inputs than a
 few real datasets, and the code being tested against has to stay fixed while the working tree changes. This PR adds
 the fixed copy and the shared test helpers on their own, so they can be reviewed before any optimisation depends on
@@ -17,7 +19,7 @@ them.
 - **`tests/reference/pints_ref`** is a copy of upstream PINTS `81b2dd9` (`calling_engine`, `extension_engine`,
   `io_engine`, `qc_engine`, `stats_engine`). The only edits are:
   - imports renamed from `pints` to `pints_ref` (6 lines);
-  - the one fix of A1 that changes output with default options: when only one strand has pairs, they are merged on
+  - the one fix of #30 that changes output with default options: when only one strand has pairs, they are merged on
     their own (`pair()`).
 
   Nothing in `pints/` imports it. The reference is not meant to be edited. Later PRs compare against it, so it
@@ -44,21 +46,21 @@ kernels) use `hypothesis`, and `numba` is the optional extra B2 adds.
 
 ### Stacking note
 
-The branch also carries two commits that are not part of this PR. They come from A2 (`pr/09-drop-biopython`) and
-drop out when the branch is rebased onto `main` after the A PRs merge:
+The branch also carries two commits that are not part of this PR. They come from #31 (`pr/09-drop-biopython`) and
+drop out when the branch is rebased onto `main` after #30 and #31 merge:
 
 | Commit | What it is |
 |---|---|
-| `80187c8` | setup.py with one dependency per line, the first commit of A2 |
+| `80187c8` | setup.py with one dependency per line, the first commit of #31 |
 | `4f317bc` | The merge commit that brings `80187c8` in. It changes nothing else |
 
 The later PRs need it: the one-per-line setup.py keeps those that add or remove dependencies from conflicting with
-A2.
+#31.
 
 ### Testing
 
 - Full suite (`pytest tests`, Python 3.12.13, NumPy 2.1.0, pandas 2.3.1, SciPy 1.15.0): 114 passed.
-- `pints/` is unchanged from the base branch (A1), so the peak files are A1's.
+- `pints/` is unchanged from the base branch (#30), so the peak files are #30's.
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads: the
   bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - `pints_ref` was compared file by file against `git show 81b2dd9:pints/<module>.py`: the only differences are the
