@@ -76,7 +76,7 @@ The restructure on 2026-11-04 made these changes:
 - folded the two stack-only pandas 4 lines (previously `pr/14-pandas4-stack`) into PRs 4 and 6;
 - merged `pr/16-parallel-merge` into PR 15 (and, on 2026-11-08, `pr/17-eval-balance`);
 - merged `pr/10-normalizer-cli` and `pr/11-script-fixes` into `pr/10-script-fixes`;
-- dropped `pr/00-setup-one-per-line` as a separate PR. Its commit is in A3 and in the stack.
+- dropped `pr/00-setup-one-per-line` as a separate PR. Its commit is in A2 and in the stack.
 
 Old heads are kept as refs `refs/archive/2026-11-04/<branch>` (not tags: versioneer would read them). All
 `refs/archive/*` refs are pushed to the fork (`git fetch origin 'refs/archive/*:refs/archive/*'`), so every commit

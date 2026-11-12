@@ -14,7 +14,7 @@ every other open branch.
 
 ### Testing
 
-- `pints_normalizer`'s command line does not run on `main` (fixed in A3), so the check calls
+- `pints_normalizer`'s command line does not run on `main` (fixed in #32), so the check calls
   `spikein_normalization` directly, with bigWig writing stubbed out.
 - Spike-in FASTA with two records whose headers carry a description after a tab and after a space; BAMs
   `tests/datasets/chr22.bam` and `input.chr22.bam`: total reads, spike-in reads, spike-in percentages and spike-in

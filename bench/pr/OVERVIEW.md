@@ -1,15 +1,16 @@
 ## Overview: fixes, speed-ups and fewer dependencies for PINTS
 
 Hi Li, thanks for agreeing to review these. This comment is a map of everything we're proposing, so each PR can be
-read in context. There are 14 PRs in two groups. They are labelled A1–A4 and B1–B10 here, because their GitHub numbers aren't known yet:
+read in context. There are 14 PRs in two groups. Group A is open now as #30–#33; the stack is labelled B1–B10
+here until it is opened:
 
 - **Group A: four independent fixes against `main`**, which can merge in any order;
 - **Group B: a stack of ten performance PRs**, to be opened one at a time after group A has merged.
 
 **With default options, every PR leaves `pints_caller`'s output byte-identical to the current release.** The
-exceptions are in A1: three options that had no effect before now do what their help text says, and runs where
+exceptions are in #30: three options that had no effect before now do what their help text says, and runs where
 pairs are found on only one strand, which used to write malformed bidirectional and divergent files, now write
-correct ones. A3 fixes the other scripts. Everything else new is opt-in.
+correct ones. #32 fixes the other scripts. Everything else new is opt-in.
 
 ### What it adds up to
 
@@ -35,10 +36,10 @@ A run also no longer writes about 37 GB of per-base `.npy` coverage files on a g
 
 | | What | Effect on users |
 |---|---|---|
-| [A1](https://github.com/adamyhe/PINTS/blob/bench/external/bench/pr/02-trackb-fixes.md) | NumPy 2.5 crash in `get_elbow` (`np.cross` on 2-D vectors); `--focused-chrom`, `--stringent-pairs-only` and `--peak-width` were ignored; `--model Poisson` LRT; one-strand pairing; integer columns of result frames turning into `object` | A fresh `pip install` currently gets NumPy 2.5 and then fails on every run. The three options now take effect. |
-| [A2](https://github.com/adamyhe/PINTS/blob/bench/external/bench/pr/09-drop-biopython.md) | `pints_normalizer` reads the spike-in FASTA with pysam instead of Biopython; `setup.py` lists one dependency per line | One dependency fewer. Please merge without squashing (the stack contains these commits). |
-| [A3](https://github.com/adamyhe/PINTS/blob/bench/external/bench/pr/10-script-fixes.md) | `pints_normalizer` (did not run), `pints_visualizer`, `pints_counter`, `pints_boundary_extender`, `parse_gtf` | Listed per script in the PR |
-| [A4](https://github.com/adamyhe/PINTS/blob/bench/external/bench/pr/13-pandas4.md) | pandas 4 deprecations; functional tests accept pandas 3's `str` dtype | No output change under pandas 2.3 or 3.1 |
+| #30 | NumPy 2.5 crash in `get_elbow` (`np.cross` on 2-D vectors); `--focused-chrom`, `--stringent-pairs-only` and `--peak-width` were ignored; `--model Poisson` LRT; one-strand pairing; integer columns of result frames turning into `object` | A fresh `pip install` currently gets NumPy 2.5 and then fails on every run. The three options now take effect. |
+| #31 | `pints_normalizer` reads the spike-in FASTA with pysam instead of Biopython; `setup.py` lists one dependency per line | One dependency fewer. Please merge without squashing (the stack contains these commits). |
+| #32 | `pints_normalizer` (did not run), `pints_visualizer`, `pints_counter`, `pints_boundary_extender`, `parse_gtf` | Listed per script in the PR |
+| #33 | pandas 4 deprecations; functional tests accept pandas 3's `str` dtype | No output change under pandas 2.3 or 3.1 |
 
 ### Group B: the performance stack
 
@@ -87,7 +88,7 @@ the stack, `pints/` grows by about 3,600 lines, two of them new modules (`covera
 
 ### Suggested order, and questions for you
 
-1. Group A in any order (A2 without squashing). Then we rebase the stack onto the new `main` and open B1, B2, …
+1. Group A (#30–#33) in any order, with #31 merged without squashing. Then we rebase the stack onto the new `main` and open B1, B2, …
    one at a time, each after the previous one merges. Does that work for you, or would you prefer the stack
    grouped into fewer, larger PRs?
 2. B1 keeps a 4,150-line frozen copy of the release in `tests/`. It is what makes the bit-for-bit claims testable.
