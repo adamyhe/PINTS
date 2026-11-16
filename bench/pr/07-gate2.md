@@ -87,14 +87,14 @@ differently, and that the option has no effect without Numba.
 
 **Review order** (`git log pr/15-serial-steps..pr/07-gate2`):
 
-1. `06ae7b1` the kernel (`_zip_em_nb`, `_zip_fit_window_nb`), behind `PINTS_FAST_MATH=1`;
-2. `ff45a22` `fit_background`: the kernel only for each tested window's final background fit;
-3. `672affb` unit tests;
-4. `89252c3` certified kernel fits in LER (`_ler_mus_nb` and the certification helpers);
-5. `52f1469` the likelihood-ratio test from the kernel in `--sensitive` mode;
-6. `717ec61` the `--fast-math` option replaces the environment variable;
-7. `1ea6776` names the code after the option (comments, docstrings and test names only);
-8. `480f6e5` README.
+1. `8fccb5c` the kernel (`_zip_em_nb`, `_zip_fit_window_nb`), behind `PINTS_FAST_MATH=1`;
+2. `7c2bc62` `fit_background`: the kernel only for each tested window's final background fit;
+3. `6b34563` unit tests;
+4. `beba450` certified kernel fits in LER (`_ler_mus_nb` and the certification helpers);
+5. `73d61ea` the likelihood-ratio test from the kernel in `--sensitive` mode;
+6. `163d43c` the `--fast-math` option replaces the environment variable;
+7. `9f2793b` names the code after the option (comments, docstrings and test names only);
+8. `c100a57` README.
 
 ### Risks
 
@@ -193,6 +193,10 @@ steps are unchanged.
 
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `c100a57`: full suite 496 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) without `--fast-math` are byte-identical to
+  `main`'s. `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the
+  `k562` annotation lookup answered locally (same bigBed file).
 - `tests/unit/test_fast_math.py` (new; 10 test functions, 27 cases with the parametrised ones; skipped without
   numba):
   - the kernel fit matches `ZIP.fit` within 1e-9 relative (λ, π, log-likelihood) with the same convergence flag,
@@ -207,7 +211,7 @@ steps are unchanged.
   - `_ler_mus_nb` matches the exact fits (bit for bit where it reports exact), and rejects negative values;
   - `_chi2_sf_df2` matches `chi2.sf(x, 2)` within 1e-12 relative from 1e-300 to 1400, and handles NaN and large x;
   - the kernel LRT matches `lrt` within 1e-9 relative, and falls back in debug mode and for float input.
-- Full suite at `480f6e5`: 496 passed (base branch: 469), with numba 0.61.2 and pandas 2.3.1.
+- Full suite at `c100a57`: 496 passed (base branch: 469), with numba 0.61.2 and pandas 2.3.1.
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads,
   without `--fast-math`: the bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - In an earlier version of this branch, with the kernels on, the certified-LER commit left the output

@@ -19,7 +19,7 @@ earlier run are no longer reused (below). Stacked on B4 (`pr/04-io`); review the
   instead of about 37 GB.
 - **Memory.** Lower on replicate and control inputs, slightly higher on some others (Costs, below).
 
-The reuse change is its own commit (`5638567`), disjoint from the last one, so it can be dropped on its own if you
+The reuse change is its own commit (`d00f17d`), disjoint from the last one, so it can be dropped on its own if you
 prefer to keep the reuse. Keeping it would mean loading old dumps into tracks.
 
 **At the branch heads**, 2026-11-09 (setup and provenance under Timing and memory), after / before wall time:
@@ -100,7 +100,7 @@ threads, and all of it passes through the page cache, which cgroup v2 charges to
 - **Releasing coverage drops tracks**; nothing is left to delete.
 - The fractional-value warning of the bigWig loaders is also logged by the store's loaders (still once per
   chromosome, as before).
-- **Each element-definition task gets only its chromosome's entries** (last commit, `0e60047`). Before, every
+- **Each element-definition task gets only its chromosome's entries** (last commit, `47c75fe`). Before, every
   task received every sample's whole chromosome → coverage dict, although it reads one entry. There are two tasks
   per contig, so the pickled arguments grow with the square of the contig count. The registry keys are small, but
   T4's BAM header lists 2066 contigs: pickling 4132 tasks, each carrying dicts of 2066 keys that pickle through a
@@ -149,9 +149,9 @@ two runs agreed within 0.2 GB.
 B3 (`f8110c7`) and one other commit ran alternately: three pairs at 16 and 64 threads, one at 1 thread; medians.
 The two commits compared below are:
 
-- `6d2056c`, an earlier version of B4: B4's code without A1's fixes (they add no work on these runs apart from the
+- `6d2056c`, an earlier version of B4: B4's code without #30's fixes (they add no work on these runs apart from the
   bigWig warning's check of the loaded values).
-- `adada92`, an earlier version of this branch: this branch's code without A1's fixes, without the bigWig warning
+- `adada92`, an earlier version of this branch: this branch's code without #30's fixes, without the bigWig warning
   in the store's loaders, without the no-reuse commit (which does nothing in a fresh output directory) and without
   the last commit, **plus** an earlier version of B6's first commit (BED sort, merge and concatenation without
   bedtools). That commit changes only the filtering and pairing steps, so the phases below are not affected by it.
@@ -219,8 +219,8 @@ cell, median wall time, identical output in every cell:
 
 <details><summary>Provenance of the measured commits</summary>
 
-- Branch-head run and cgroup table: B4 at `0333d58` (now `03a9b20`) against this branch at `769beba` (now
-  `0e60047`), which includes the last commit and none of B6. Each pair has the same code apart from comments,
+- Branch-head run and cgroup table: B4 at `0333d58` (now `a9f858b`) against this branch at `769beba` (now
+  `47c75fe`), which includes the last commit and none of B6. Each pair has the same code apart from comments,
   test names and B3's phase-timer fix, which affects only stderr when `PINTS_PHASE_TIMING` is set.
 - `f8110c7`, `6d2056c`, `adada92` and `6774d93` live under `refs/archive/*` on the fork
   (github.com/adamyhe/PINTS).
@@ -232,6 +232,10 @@ cell, median wall time, identical output in every cell:
 
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `47c75fe`: full suite 265 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
 - `tests/unit/test_coverage_store.py`: `window`, `fill` and `clear` against the dense array, including empty
   tracks, negative bounds and windows past the chromosome ends; sums and maxima; `track_to_npy` writes
   `np.save`'s bytes; registry keys pickle small and tracks refuse to; float tracks are rejected.

@@ -98,10 +98,10 @@ three executables; both are gone here. Whether they account for the 0.2–0.3 s 
 
 - Timing run: B5 at `80a791b` against this branch at `6171301`. They have the same `pints/`, `scripts/`,
   `setup.py` and `README.md` as `769beba` and `efe3a3f`, the previous heads of B5 and of this branch, and those
-  differ from the current heads (`0e60047`, `0a21e1f`) only in comments, test names and B3's phase-timer fix,
+  differ from the current heads (`47c75fe`, `6dffa5e`) only in comments, test names and B3's phase-timer fix,
   which affects only stderr when `PINTS_PHASE_TIMING` is set.
 - The `pybdt_*` counts come from a profile of `6d2056c`, an earlier version of B4 (B4's code before the rebase onto
-  A1). In the profile of `adada92` (an earlier version of this branch's first commit, on the store), the H1 and H3
+  #30). In the profile of `adada92` (an earlier version of this branch's first commit, on the store), the H1 and H3
   runs at 64 threads created no `pybdt_*` files.
 - Benchmark equivalence of `ca581dd`: all 78 runs (19 datasets; default, `--disable-small` and sensitive
   configurations; 1, 32 and 64 threads) are byte-identical to `main`. Its `pints/` code differs from this branch
@@ -114,6 +114,10 @@ three executables; both are gone here. Whether they account for the 0.2–0.3 s 
 
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `6dffa5e`: full suite 423 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
 - `tests/unit/test_bed_ops.py`: sort, merge (with `collapse` and `distinct`) and `merge -d` against bedtools on
   60 random sets of records with many tied starts; strand-aware merge and `intersect -v/-u/-c` (with and without
   `-s`) against bedtools on 60 more, including zero-length records, `.` strands and an unsorted `-a`; `cat`

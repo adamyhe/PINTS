@@ -1,8 +1,7 @@
 ## Fewer dependencies: drop statsmodels and requests, make matplotlib optional
 
 Stacked on B7 (`pr/08-trackb-flags`); review only the last four commits (statsmodels, matplotlib, requests,
-README). Before them, the branch merges A2 (`pr/09-drop-biopython`), because this PR changes the same
-`install_requires` lines; that merge drops out once A2 is in `main` and this branch is rebased.
+README).
 
 **The output is byte-identical to the base branch and to `main`.** The p-value adjustment repeats statsmodels'
 operations, so the adjusted p-values are bit for bit the same.
@@ -39,7 +38,7 @@ environment. After this PR, all the remaining dependencies are packages PINTS us
 | pyBigWig | pyBigWig | pyBigWig |
 | requests | requests | |
 | statsmodels>=0.12.1 | statsmodels>=0.12.1 | |
-| biopython | biopython | (dropped by A2) |
+| biopython | biopython | (dropped by #31) |
 | matplotlib | matplotlib | extra `plots` |
 | pybedtools>=0.8.1 | (dropped by B6) | |
 
@@ -47,19 +46,19 @@ Extras: `main` has none, the base branch has `fast` (numba), and this PR adds `p
 
 ### What changes
 
-- **statsmodels** (`1bf51e8`). `stats_engine.adjust_pvalues` replaces `multipletests(...)[1]` in
+- **statsmodels** (`73ab216`). `stats_engine.adjust_pvalues` replaces `multipletests(...)[1]` in
   `independent_filtering`. It repeats statsmodels' operations for the four methods `pints_caller` offers: `fdr_bh`,
   `bonferroni`, `fdr_tsbh` and `fdr_tsbky` (the two-stage methods as `fdrcorrection_twostage` with one iteration).
   For no p-values it raises `ZeroDivisionError`, as statsmodels does. `independent_filtering` already catches that
   error and falls back to Bonferroni. An unknown method raises `ValueError`. statsmodels is now needed only by the
   test that compares against it; the run instructions in `tests/conftest.py` add it.
-- **matplotlib** (`fd621e0`). It moves to the `plots` extra. It was already imported only inside the `--debug`
+- **matplotlib** (`296fa27`). It moves to the `plots` extra. It was already imported only inside the `--debug`
   branches; `peak_calling` now checks for it at the start when `--debug` is given. The `--debug` help text names the
   extra.
-- **requests** (`9483cd0`). `check_update` reads `https://pypi.org/pypi/pyPINTS/json` with `urllib.request`, with
+- **requests** (`be6ac57`). `check_update` reads `https://pypi.org/pypi/pyPINTS/json` with `urllib.request`, with
   the same 10 s timeout and up to three retries, waiting 0, 6 and 12 s. Any failure is still logged, not raised.
   The epigenomic annotation download already used urllib.
-- **README** (`244ec0b`). The Installation section describes the `fast` and `plots` extras.
+- **README** (`ea920e6`). The Installation section describes the `fast` and `plots` extras.
 
 ### Timing
 
@@ -71,7 +70,7 @@ none of the changed code is on a hot path. The benchmark kit is
 
 `bench/variants.json` in the kit pins each measured variant to a commit, and `bench/datasets.json` describes the
 datasets. Measured on 2026-11-09 at `7da8a80` (base) and `789516e` (this branch before the README commit), earlier
-versions of `2e7d7cf` and `9483cd0` with the same code apart from comments and test names, on an AMD EPYC 9554
+versions of `c6bc17f` and `be6ac57` with the same code apart from comments and test names, on an AMD EPYC 9554
 server: three alternating repetitions per cell, median wall time, with another user's single-core jobs on the
 node's other cores. PINTS runs on one thread unless `--thread` is given. Identical output in every cell:
 
@@ -89,6 +88,10 @@ cell they took 35.9–40.9 s.
 
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `ea920e6`: full suite 460 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
 - `tests/unit/test_adjust_pvalues.py` (new) compares `adjust_pvalues` with statsmodels' `multipletests` exactly
   (`assert_array_equal`, same dtype):
   - for each of the four methods and alpha 0.05, 0.1 and 0.5;

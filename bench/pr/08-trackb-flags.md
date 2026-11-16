@@ -68,8 +68,8 @@ fork's `bench/external` branch.
 <details><summary>Per-dataset timings</summary>
 
 `bench/variants.json` in the kit pins each measured variant to a commit, and `bench/datasets.json` describes the
-datasets. Measured on 2026-11-09 at `efe3a3f` (base) and `7da8a80` (this branch), earlier versions of `0a21e1f` and
-`2e7d7cf` with the same code apart from comments and test names, on an AMD EPYC 9554 server: three alternating
+datasets. Measured on 2026-11-09 at `efe3a3f` (base) and `7da8a80` (this branch), earlier versions of `6dffa5e` and
+`c6bc17f` with the same code apart from comments and test names, on an AMD EPYC 9554 server: three alternating
 repetitions per cell, median wall time, with another user's single-core jobs on the node's other cores. PINTS runs
 on one thread unless `--thread` is given. Identical output in every cell:
 
@@ -84,11 +84,15 @@ on one thread unless `--thread` is given. Identical output in every cell:
 
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `c6bc17f`: full suite 438 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
 - `tests/test_opt_in_fixes.py` (new; 7 test functions, the two LER tests run 5 cases each): CLI defaults and flags;
   workers receive the settings; IQR fences; LER flanks near the chromosome start and end and with the tested peak
   inside or outside the flank, plus a check that the flag-off path equals the previous code; strict independent
   filtering; padj-based pairing.
-- Full suite at `2e7d7cf`: 438 passed (423 on B6).
+- Full suite at `c6bc17f`: 438 passed (423 on B6).
 - chr22, bigWig and BAM input: with no flags, output is byte-identical to `main`.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)

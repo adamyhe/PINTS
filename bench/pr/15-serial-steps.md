@@ -24,7 +24,7 @@ had finished.
 
 ### What changes
 
-- **Pairing is split by chromosome** (`9893357`). With a pool, `pair()` splits each strand's significant peaks into
+- **Pairing is split by chromosome** (`eb24bc7`). With a pool, `pair()` splits each strand's significant peaks into
   pool tasks of whole chromosomes: consecutive chromosomes are added to a task until it holds at least
   `_PAIR_CHUNK_LINES` (2000) peaks, and then the next task starts. A chromosome is never split, so a task can hold
   more than 2000 peaks, and the last task may hold fewer. A task builds an index of only its own chromosomes'
@@ -36,21 +36,21 @@ had finished.
   - Chromosome names that a tabix region string could misread (for example `HLA-A*01:01`), and records outside
     the format `from_file` accepts, fall back to the whole-file index as before.
   - Without a pool (`--thread 1`), pairing runs as before.
-- **Independent filtering makes one quantile call** (`9893357`). `independent_filtering` now calls `quantile` once
+- **Independent filtering makes one quantile call** (`eb24bc7`). `independent_filtering` now calls `quantile` once
   with all 200 quantiles. pandas computes a scalar quantile as the one-element list `[q]`, so each value is bit for
   bit the one a separate call returns. In a separate check over 120,600 comparisons, none differed.
-- **The strand tables are read on the pool together** (`9893357`). A pickled DataFrame is an exact copy of the one
+- **The strand tables are read on the pool together** (`eb24bc7`). A pickled DataFrame is an exact copy of the one
   read in the worker.
-- **The three strand merges run on the pool** (`776a41d`). The bidirectional, divergent and singleton merges are
+- **The three strand merges run on the pool** (`a4a3a41`). The bidirectional, divergent and singleton merges are
   independent: each reads its own two files and writes its own output. Without a pool, they run one after the
   other as before.
-- **Window-test chunks are dispatched by total subpeak width** (`c2698ec`). Width predicts a chunk's run time better
+- **Window-test chunks are dispatched by total subpeak width** (`eef3300`). Width predicts a chunk's run time better
   than the number of subpeaks: on H3 at 16 threads, it underestimates a chrEBV chunk by 1.35× instead of 2.1×,
   which is enough to send it first. Results are still returned in task order.
 
 ### Timing
 
-Measured on 2026-11-09 at `789516e` (base) and `7a18b38` (this branch), earlier versions of `9483cd0` and this
+Measured on 2026-11-09 at `789516e` (base) and `7a18b38` (this branch), earlier versions of `be6ac57` and this
 branch with the same code apart from comments and test names, on an AMD EPYC 9554 server: three alternating
 repetitions per cell, median wall time. PINTS runs on one thread unless `--thread` is given. Another user's
 single-core jobs ran on the node's other cores, which makes both sides slower. Identical output in every cell:
@@ -98,6 +98,10 @@ In the H3 64-thread profile of the first commit:
 
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `eef3300`: full suite 469 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
 - `tests/diff/test_differential_serial_steps.py` (new; Hypothesis property tests) checks:
   - independent filtering against the reference implementation in `pints_ref`, exactly;
   - scalar against list quantiles for integer, float, object, empty and single-value Series;

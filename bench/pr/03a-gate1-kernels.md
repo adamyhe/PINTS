@@ -58,7 +58,7 @@ Stratified filtering has two similar costs: the small-peak p-values are computed
 
 ### Timing
 
-Against B1 (`pr/03-test-harness`; no `pints/` changes relative to A1), on an AMD EPYC 9554 server at 16 threads,
+Against B1 (`pr/03-test-harness`; no `pints/` changes relative to #30), on an AMD EPYC 9554 server at 16 threads,
 three alternating runs each, median wall time, Numba installed:
 
 | Dataset | Wall time |
@@ -73,6 +73,10 @@ its own takes these runs to 0.05–0.19 of this PR's time.
 
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `d9b05a0`: full suite 137 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
 - `tests/diff/test_differential.py` (new; Hypothesis property tests) compares the working tree with the reference
   copy `pints_ref`. Results must be equal bit for bit, with the same dtypes and Python types. It covers:
   - interval merging, sliding windows, peak cutting, quasi-max-score segments, IQR thresholds and `get_elbow`;

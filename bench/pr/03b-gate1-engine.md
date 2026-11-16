@@ -19,7 +19,7 @@ to 4.81 GB.
 - A new environment variable for diagnostics, `PINTS_PHASE_TIMING=1` (documented in the README; see Diagnostics).
 - With an input control and `--thread` > 1, up to about twice `--thread` worker processes exist at once (see
   Risks).
-- The non-integer bigWig warning from A1 is still logged once per chromosome.
+- The non-integer bigWig warning from #30 is still logged once per chromosome.
 
 ### Why
 
@@ -97,28 +97,28 @@ length of the parallel step, and the serial steps account for the rest.
   option.
 
 **Fixes to earlier commits**
-- `876108a` passes A1's non-integer bigWig warning and `--peak-width` on to the block-wise bigWig loader and
+- `6770323` passes #30's non-integer bigWig warning and `--peak-width` on to the block-wise bigWig loader and
   element definition. The default path uses those since the earlier commits of this PR, so without it the warning
   and the option did not reach it. Output without `--peak-width` is unchanged.
-- `c23eaf5` fixes a regression introduced earlier in this PR by `947a1ad` (per-sample pairing on the pool). With
+- `fba112c` fixes a regression introduced earlier in this PR by `eea5935` (per-sample pairing on the pool). With
   several samples (`--dont-merge-reps`) and `--thread` > 1, that path read `kwargs["stringent_only"]`, but the
   command line stores the option as `stringent_pairs_only`, so `--stringent-pairs-only` was ignored there. It now
   uses `_stringent_only(kwargs)`, like the other pairing calls.
 
 **Review order** (`git log pr/03a-gate1-kernels..pr/03b-gate1-engine`), grouped by topic, oldest first in each:
 
-- Parsing: `1f99ef3` BAM by contig; `225dc04` parallel bigWig loading.
-- Element definition: `986bdcb` vectorised window sums (and the LRT skip outside `--sensitive`).
-- Window tests: `36cde41` chunked tests and `SubpeakIndex`; `522238d` one persistent pool, all samples and strands
+- Parsing: `5c72cb5` BAM by contig; `92a6e0b` parallel bigWig loading.
+- Element definition: `2c796cf` vectorised window sums (and the LRT skip outside `--sensitive`).
+- Window tests: `23b11fc` chunked tests and `SubpeakIndex`; `8d8bb54` one persistent pool, all samples and strands
   in one pass, parallel element definition.
-- Filtering and pairing: `7415cce` filtering on the pool (and bigWig tracks from intervals); `7b79977`
-  `PeakBedIndex`; `fc93ee5` tabix kept for few queries.
-- Pool and memory: `7b31929` subpeak compression, replicate merging and normalisation on the pool; `947a1ad` Numba
-  warm-up and per-sample pairing on the pool; `e78f6ea` block-wise element definition, bigWig loading and
-  normalisation; `8c03e5c` 2 Mb blocks.
-- Diagnostics: `76ad22f` `PINTS_PHASE_TIMING`.
-- Tests: `a3c48ab` parallel engine; `ad38a0b` concatenation dtypes and `PeakBedIndex`.
-- Fixes: `876108a` bigWig warning and `--peak-width`; `c23eaf5` `--stringent-pairs-only`.
+- Filtering and pairing: `9c82120` filtering on the pool (and bigWig tracks from intervals); `0330551`
+  `PeakBedIndex`; `6472558` tabix kept for few queries.
+- Pool and memory: `d3616ae` subpeak compression, replicate merging and normalisation on the pool; `eea5935` Numba
+  warm-up and per-sample pairing on the pool; `5504db6` block-wise element definition, bigWig loading and
+  normalisation; `ac098b4` 2 Mb blocks.
+- Diagnostics: `f1fd5a9` `PINTS_PHASE_TIMING`.
+- Tests: `836e540` parallel engine; `8698254` concatenation dtypes and `PeakBedIndex`.
+- Fixes: `6770323` bigWig warning and `--peak-width`; `fba112c` `--stringent-pairs-only`.
 
 ### Risks and limitations
 
@@ -167,7 +167,7 @@ description).
 | `T5_bam_ct_k562_grocap` | GRO-cap BAM + input, chr19–22 | 583 → 90.0 s (6.5×) | 395 → 16.1 s (25×) | 395 → 13.7 s (29×) | 6.9 → 2.0 GB | 6.9 → 4.3 GB |
 
 Median wall time of three runs (one run for the reference at 1 thread). Peak PSS is summed over all PINTS processes.
-The reference does not have A1's empty-frame dtype fix, which alone accounts for part of the H3 gain (717 → 625 s at
+The reference does not have #30's empty-frame dtype fix, which alone accounts for part of the H3 gain (717 → 625 s at
 16 threads, measured on H3 only).
 
 Peak memory rises on `H1` at 16 and 64 threads (about twice the release's), and on `H2` at 64 threads. At one
@@ -177,11 +177,11 @@ the number of workers (3.5, 9.1, 15.6 and 25.6 GB at 1, 4, 8 and 16 threads). B4
 <details><summary>Provenance of these measurements</summary>
 
 - The per-PR table was measured on an earlier version of this branch (`06d7b74`), whose `pints/` differs from
-  `c23eaf5` only by the phase-timer fix (it affects only stderr with `PINTS_PHASE_TIMING` set), against an earlier
+  `fba112c` only by the phase-timer fix (it affects only stderr with `PINTS_PHASE_TIMING` set), against an earlier
   version of B2 (`f45b706`) with the same `pints/`.
 - The combined commit `f8110c7` (archived) is the head of the branch from which B2 and B3 were split. Its `pints/`
   code equals this branch's except for:
-  - A1's changes, which it does not have: the `get_elbow` arithmetic, option passing, `Poisson.lrt`, one-strand
+  - #30's changes, which it does not have: the `get_elbow` arithmetic, option passing, `Poisson.lrt`, one-strand
     pairing and the bigWig warning. Of these, only the bigWig warning runs on these datasets with default
     options, and it is one comparison per interval value;
   - where `_concat_result_frames` sits and its docstring;
@@ -197,7 +197,11 @@ the number of workers (3.5, 9.1, 15.6 and 25.6 GB at 1, 4, 8 and 16 threads). B4
 
 ### Testing
 
-At the branch head (`c23eaf5`):
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `fba112c`: full suite 211 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
+At the branch head (`fba112c`):
 
 - New differential tests (Hypothesis where inputs are random) compare the working tree with `pints_ref` bit for bit:
   - `tests/diff/test_differential_parallel.py`: vectorised window sums and regions; contig-parallel BAM parsing and

@@ -1,10 +1,8 @@
 ## Add a test harness: a frozen reference copy of PINTS and characterisation tests
 
 This PR adds tests only: a frozen copy of upstream PINTS (`tests/reference/pints_ref`) and characterisation tests of
-the current engine. Nothing in `pints/` changes, so the output is unchanged and nothing changes for users. Stacked
-on #30 (`pr/02-trackb-fixes`); review only the last commit (`cf1ec8b`). A PR from a fork can only target `main`, so
-GitHub also lists #30's commits, #31's setup.py commit and its merge (see the stacking note below). This PR is a
-draft until #30 merges; the branch will then be rebased onto `main`, and only the harness commit will remain.
+the current engine. Nothing in `pints/` changes, so the output is unchanged and nothing changes for users. One
+commit (`9c08c15`), on `main` after #30–#33.
 
 ### Why
 
@@ -44,23 +42,14 @@ The tests in this PR need pytest on top of PINTS's own dependencies. The install
 docstring (`pip install pytest hypothesis numba`) covers the whole series: the differential tests added in B2 (exact
 kernels) use `hypothesis`, and `numba` is the optional extra B2 adds.
 
-### Stacking note
-
-The branch also carries two commits that are not part of this PR. They come from #31 (`pr/09-drop-biopython`) and
-drop out when the branch is rebased onto `main` after #30 and #31 merge:
-
-| Commit | What it is |
-|---|---|
-| `80187c8` | setup.py with one dependency per line, the first commit of #31 |
-| `4f317bc` | The merge commit that brings `80187c8` in. It changes nothing else |
-
-The later PRs need it: the one-per-line setup.py keeps those that add or remove dependencies from conflicting with
-#31.
-
 ### Testing
 
+- After rebasing onto `main` (`2b72d87`, with #30–#33) on 2026-11-15, at `9c08c15`: full suite 114 passed, and the
+  chr22 peak files (bigWig, BAM, `--annotation-gtf`; 1 and 4 threads) are byte-identical to `main`'s.
+  `pints.yulab.org` returned 502 that day, so the three tests in `tests/functional_test.py` ran with the `k562`
+  annotation lookup answered locally (same bigBed file).
 - Full suite (`pytest tests`, Python 3.12.13, NumPy 2.1.0, pandas 2.3.1, SciPy 1.15.0): 114 passed.
-- `pints/` is unchanged from the base branch (#30), so the peak files are #30's.
+- `pints/` is unchanged from `main`, so the peak files are `main`'s.
 - chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads: the
   bidirectional, divergent and unidirectional peaks are byte-identical to `main`.
 - `pints_ref` was compared file by file against `git show 81b2dd9:pints/<module>.py`: the only differences are the

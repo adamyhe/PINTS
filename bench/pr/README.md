@@ -105,3 +105,9 @@ items); test files were renamed (`test_trackb_fixes.py` → `test_bugfixes.py`, 
 fixing the `fit_fast_math` docstring. Every branch except A2 and A3 was rewritten; A4 only in a commit message.
 All descriptions were rewritten from four outside reviews, and `bench/pr/OVERVIEW.md` was added for Li. Old heads
 are kept as `refs/archive/2026-11-12/<branch>`.
+
+On 2026-11-15, after Li merged #30–#33 (merge commits, so their SHAs are in `main`), the stack was rebased onto
+`main` (`2b72d87`): a linear rebase without conflicts that drops B1's setup.py merge and B8's merge of #31. Each new
+branch tree equals `git merge-tree` of the old branch with `main`. Suites, chr22 output against `main` and the other
+scripts' outputs all match (jobs 4121568, 4121569, 4121743; `pints.yulab.org` was returning 502, so the functional
+tests ran with the annotation lookup answered locally). Old heads are kept as `refs/archive/2026-11-15/<branch>`.
