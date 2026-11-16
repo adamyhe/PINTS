@@ -39,8 +39,8 @@ per-base coverage dumps, which dominate peak memory and disk use, and needs exte
 
 ### How to review
 
-Every commit keeps the suite passing and the output unchanged, so the PR can be read commit by commit. The last two
-commits change nothing on their own: they let the two follow-ups each add their options without touching the same
+Every commit keeps the suite passing and the output unchanged, so the PR can be read commit by commit. The two
+groundwork commits change nothing on their own: they let the two follow-ups each add their options without touching the same
 lines, so either can merge without the other. The parts, in
 order (each link is that part's full description, with its timing, risks and tests):
 
@@ -55,6 +55,7 @@ order (each link is that part's full description, with its timing, risks and tes
 | [Fewer dependencies](https://github.com/adamyhe/PINTS/blob/bench/external/bench/pr/12-fewer-deps.md) | `14570dd`..`fad2b8d` (4) | statsmodels' BH adjustment repeated in numpy (bit-identical), requests → `urllib`, matplotlib → `plots` extra | – |
 | [Steps after evaluation](https://github.com/adamyhe/PINTS/blob/bench/external/bench/pr/15-serial-steps.md) | `9f239e3`..`a86de61` (3) | Filtering, pairing and strand merging on the pool; window-test chunks dispatched by size | 0.88–0.98 |
 | Groundwork for the follow-ups | `3f2c70a`, `f45ef27` | The LER candidate background in one helper (the code `bgIQR` and `pkIQR` each had inline), and `stats_engine.register_option`: options of the statistical tests registered next to their code, applied by `peak_calling` and passed to pool workers. No option is registered here | – |
+| Fixes from review | `5a3544f`..`7d7f3b5` (5) | The tabix fallback tests subpeaks in the sorted file's order, as before; phase-1 results collected in one pass (was units × tasks); the control is normalised before the pool forks on the `PINTS_COVERAGE_STORE=0` path too; `pints_counter` reads gzip region files and skips header lines again; the update check does not retry HTTP errors; tidy-up | – |
 
 The linked descriptions were written when these parts were separate, stacked PRs, so their "stacked on" lines and
 commit hashes refer to that layout; the commits themselves are the same.
@@ -69,8 +70,6 @@ and `bed_ops.py`); `tests/` +8,121, of which 4,151 are the frozen reference copy
 - **Memory grows with the number of distinct coverage runs**, not with genome length. The benchmark inputs carry
   signal on 0.02–0.07% of bases; a dense input whose value changes at most bases approaches per-base storage and
   is held in memory rather than on disk.
-- **With `PINTS_COVERAGE_STORE=0`** and an input control, up to about twice `--thread` worker processes exist while
-  the control is parsed (the default path parses it before the pool starts).
 - **Tie order in BED sorting** replays bedtools 2.31 built with libstdc++. A bedtools built against another C++
   library could order ties differently from `main` as tested.
 - **Test dependencies.** The tests need pytest, hypothesis and numba (the `tests/conftest.py` docstring), plus
@@ -99,11 +98,15 @@ pins each measured variant to a commit, `bench/datasets.json` describes the data
   top, which contains this PR's code).
 - Property-based tests (Hypothesis) compare each rewritten function with the frozen `pints_ref` bit for bit,
   including dtypes.
-- At `f45ef27`, on `main` (`2b72d87`), 2026-11-16: full suite 454 passed (Python 3.12.13, NumPy 2.1.0, pandas 2.3.1,
+- At `3e4c610`, on `main` (`2b72d87`), 2026-11-16: full suite 458 passed (Python 3.12.13, NumPy 2.1.0, pandas 2.3.1,
   SciPy 1.15.0, Numba 0.61.2). `pints.yulab.org` was returning 502, so the three tests in `tests/functional_test.py`
   ran with the `k562` annotation lookup answered locally (same bigBed file); #35 removes that dependency.
-- chr22 test data, with bigWig, BAM, and `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads: the
-  bidirectional, divergent and unidirectional peaks are byte-identical to `main`'s.
+- chr22 test data, with bigWig, BAM, BAM with an input control (`--ct-bam tests/datasets/input.chr22.bam`), and
+  `--annotation-gtf --focused-chrom chr22` input, at 1 and 4 threads: the bidirectional, divergent and
+  unidirectional peaks are byte-identical to `main`'s. With `PINTS_COVERAGE_STORE=0` (bigWig, and BAM with the
+  control, at 1 and 4 threads) they are too, with no fork warnings in the log.
+- The fallback when the in-memory subpeak index is not supported: the new test shuffles the element-definition
+  files so that it is taken, and compares with `pints_ref`. It failed before `5a3544f` and passes now.
 - `pints_visualizer`, `pints_counter`, `pints_boundary_extender` and `pints_sample_qc` on chr22: all 24 output files
   are byte-identical to `main`'s. The one run that fails on `main` (`pints_counter` with only `-b`) succeeds here.
 - Both follow-ups on top of this branch (opt-in fixes, `--fast-math`) give byte-identical peaks to the earlier
